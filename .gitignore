@@ -1,0 +1,16 @@
+# Секретные файлы с ключами
+.env
+
+# Виртуальное окружение и кэш Python
+venv/
+__pycache__/
+*.pyc
+
+# Профиль браузера и сессии Playwright
+google_maps_profile/
+chromium_profile/
+
+# Отладочные скриншоты и логи
+debug_screenshots/
+*.png
+*.log
