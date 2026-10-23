@@ -1,351 +1,103 @@
 [
   {
-    "id": 1,
     "name": "Colosseum",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   },
   {
-    "id": 2,
     "name": "Pantheon",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   },
   {
-    "id": 3,
-    "name": "Borghese Gallery and Museum",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 4,
     "name": "Castel Sant'Angelo",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   },
   {
-    "id": 5,
     "name": "Roman Forum",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   },
   {
-    "id": 6,
-    "name": "Villa Borghese",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 7,
     "name": "Trevi Fountain",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   },
   {
-    "id": 8,
     "name": "Mouth of Truth",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   },
   {
-    "id": 9,
     "name": "Museums in Rome",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   },
   {
-    "id": 10,
     "name": "Arch of Constantine",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   },
   {
-    "id": 11,
     "name": "Civita di Bagnoregio",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   },
   {
-    "id": 12,
     "name": "Spanish Steps",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   },
   {
-    "id": 13,
     "name": "National Roman Museum - Palazzo Massimo",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   },
   {
-    "id": 14,
     "name": "Big Bus Tours Rome",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   },
   {
-    "id": 15,
     "name": "Palazzo Colonna",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   },
   {
-    "id": 16,
     "name": "McArthurGlen Designer Outlet Castel Romano",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   },
   {
-    "id": 17,
     "name": "Piazza Venezia",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   },
   {
-    "id": 18,
-    "name": "Capitoline Museums",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 19,
     "name": "Palatine Hill",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   },
   {
-    "id": 20,
     "name": "Museum Leonardo Da Vinci Experience",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 21,
-    "name": "Doria Pamphili Gallery",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 22,
-    "name": "Chiesa di Sant'Ignazio di Loyola",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 23,
-    "name": "Piazza Navona",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 24,
-    "name": "National Gallery of Ancient Art in Barberini Palace",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 25,
-    "name": "Bob Dylan \"Rough And Rowdy Ways\" EU/UK Tour",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 26,
-    "name": "Villa Medici",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 27,
-    "name": "Capuchin Crypt",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 28,
-    "name": "Rome Pass",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 29,
-    "name": "Monument to Victor Emmanuel II",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 30,
-    "name": "Ponte Sant'Angelo",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 31,
-    "name": "National Gallery of Modern and Contemporary Art",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 32,
-    "name": "Baths of Caracalla",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 33,
-    "name": "Welcome To Rome",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 34,
-    "name": "2027 Coppa Italia Final",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 35,
-    "name": "Teatro dell'Opera di Roma",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 36,
-    "name": "Piazza del Campidoglio",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 37,
-    "name": "Papal Basilica of Saint Mary Major",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 38,
-    "name": "Campo de' Fiori",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 39,
-    "name": "Circus Maximus",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 40,
-    "name": "Piazza del Popolo",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 41,
-    "name": "Passeggiata del Pincio",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 42,
-    "name": "Basilica of Saint John Lateran",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 43,
-    "name": "Largo di Torre Argentina",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 44,
-    "name": "Olympic Stadium",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 45,
-    "name": "Bioparco",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 46,
-    "name": "Foro Italico",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 47,
-    "name": "Piazza Barberini",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 48,
-    "name": "The Orange Garden",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 49,
-    "name": "Janiculum Hill",
-    "list_name": "Rome Test",
-    "status": "В очереди",
-    "error": ""
-  },
-  {
-    "id": 50,
-    "name": "Museo di Roma - Palazzo Braschi",
-    "list_name": "Rome Test",
+    "list_name": "Хочу посетить",
     "status": "В очереди",
     "error": ""
   }

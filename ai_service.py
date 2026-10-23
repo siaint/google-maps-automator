@@ -3,11 +3,62 @@ import logging
 import time
 from google import genai
 from google.genai import types
-from config import GEMINI_API_KEY, GUIDE_PROMPT_FILE
+from config import GEMINI_API_KEY, GUIDE_PROMPT_FILE, RATING_PROMPT_FILE
 
 logger = logging.getLogger("ai_service")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
+
+def rate_attraction(place_name: str, region: str = "") -> dict:
+    """
+    Оценивает объект с умеренным thinking_budget=512 и автоповтором при 429/503.
+    """
+    if not RATING_PROMPT_FILE.exists():
+        return {"personal_rating": 0.0, "global_rating": 0.0, "comment": f"Ошибка: файл {RATING_PROMPT_FILE.name} не найден"}
+
+    with open(RATING_PROMPT_FILE, "r", encoding="utf-8") as f:
+        rating_instruction = f.read().strip()
+
+    user_query = f'Объект для оценки: "{place_name}" (локация / регион: "{region}").'
+
+    # Возвращаем thinking, но снижаем бюджет до 512 для экономии квоты
+    config = types.GenerateContentConfig(
+        system_instruction=rating_instruction,
+        temperature=0.2,
+        thinking_config=types.ThinkingConfig(thinking_budget=512),
+        response_mime_type="application/json",
+    )
+
+    models_to_try = ["gemini-3.5-flash", "gemini-3.5-flash-lite"]
+    last_err = ""
+
+    for model_name in models_to_try:
+        for attempt in range(1, 5):
+            try:
+                resp = client.models.generate_content(
+                    model=model_name,
+                    contents=user_query,
+                    config=config,
+                )
+                data = json.loads(resp.text)
+                return {
+                    "personal_rating": float(data.get("personal_rating", 0.0)),
+                    "global_rating": float(data.get("global_rating", 0.0)),
+                    "comment": data.get("comment", "").strip()
+                }
+            except Exception as e:
+                last_err = str(e)
+                if "429" in last_err or "503" in last_err or "unavailable" in last_err.lower():
+                    time.sleep(attempt * 2)
+                    continue
+                break  
+
+    logger.error(f"Ошибка оценки объекта '{place_name}': {last_err}")
+    return {
+        "personal_rating": 0.0,
+        "global_rating": 0.0,
+        "comment": f"Ошибка AI: {last_err}"
+    }
 
 def verify_place_match(query: str, card_title: str, card_context: str, status_cb=None) -> tuple[bool, str]:
     def report(msg: str):
@@ -49,8 +100,8 @@ def verify_place_match(query: str, card_title: str, card_context: str, status_cb
             data = json.loads(resp.text)
             return data.get("is_match", False), data.get("reason", "")
         except Exception as e:
-            if "503" in str(e) and attempt < 3:
-                report("4/7: Модель 3.5-Lite перегружена (503). Пауза 2 сек...")
+            if "503" in str(e) or "429" in str(e) and attempt < 3:
+                report("4/7: Модель перегружена (429/503). Пауза 2 сек...")
                 time.sleep(2)
                 continue
             return False, f"Ошибка валидации API: {e}"
@@ -102,7 +153,7 @@ def generate_guide(place_name: str, card_title: str, card_context: str, status_c
             break
         except Exception as e:
             last_err = str(e)
-            if ("503" in last_err or "unavailable" in last_err.lower()) and attempt < max_attempts:
+            if ("503" in last_err or "429" in last_err or "unavailable" in last_err.lower()) and attempt < max_attempts:
                 time.sleep(attempt * 2)
                 continue
             break
@@ -110,7 +161,6 @@ def generate_guide(place_name: str, card_title: str, card_context: str, status_c
     if not text:
         return "", f"Ошибка генерации gemini-3.5-flash: {last_err}"
 
-    # Сжатие при превышении лимита
     if len(text) > 3600:
         if check_cancelled and check_cancelled():
             return text, ""
