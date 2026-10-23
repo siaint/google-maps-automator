@@ -85,20 +85,29 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
             if not destinations:
                 raise Exception(f"Не удалось найти регионы в блоке Destinations для '{region_query}'.")
 
-            print(f"\nНайдены регионы в блоке Destinations:")
-            for idx, dest in enumerate(destinations, 1):
-                print(f"  [{idx}] {dest['name']} ({dest['href']})")
+            # Умный выбор: если есть точное совпадение по имени — берем автоматически без меню
+            selected_dest = None
+            query_lower = region_query.strip().lower()
+            
+            for dest in destinations:
+                if dest['name'].strip().lower() == query_lower:
+                    selected_dest = dest
+                    break
 
-            choice_idx = 0
-            if len(destinations) > 1:
-                user_input = input(f"\nВыберите номер правильного варианта (1-{len(destinations)}): ").strip()
-                if user_input.isdigit() and 1 <= int(user_input) <= len(destinations):
-                    choice_idx = int(user_input) - 1
-                else:
-                    print("Введен некорректный номер, берем первый вариант по умолчанию.")
-
-            selected_dest = destinations[choice_idx]
-            print(f"Вы выбрали: {selected_dest['name']}")
+            if selected_dest:
+                print(f"\nАвтоматически выбран регион по точному совпадению: {selected_dest['name']} ({selected_dest['href']})")
+            else:
+                print(f"\nНайдены варианты для '{region_query}':")
+                for idx, dest in enumerate(destinations, 1):
+                    print(f"  [{idx}] {dest['name']} ({dest['href']})")
+                
+                choice_idx = 0
+                if len(destinations) > 1:
+                    user_input = input(f"\nВыберите номер (1-{len(destinations)}): ").strip()
+                    if user_input.isdigit() and 1 <= int(user_input) <= len(destinations):
+                        choice_idx = int(user_input) - 1
+                selected_dest = destinations[choice_idx]
+                print(f"Вы выбрали: {selected_dest['name']}")
 
             # 3. Корректируем URL для перехода на attractions
             base_href = selected_dest['href']
@@ -112,9 +121,9 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
 
             print(f"Переход на целевой URL: {target_attractions_url}")
             page.goto(target_attractions_url, wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(4000)
+            page.wait_for_timeout(6000)
 
-            # 4. Накопительный глубокий скролл с прицельным извлечением названий из заголовков карточек
+            # 4. Накопительный скролл с точным извлечением из карточек PoiCell
             collected_names = []
             seen_names = set()
             max_scrolls = 400
@@ -122,35 +131,19 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
             stuck_count = 0
             
             for scroll_step in range(max_scrolls):
-                # Ищем блоки карточек на странице
-                cards = page.locator('div[class*="poilist-item"], div.poi-card, li.poi-item, div[class*="card"]').all()
-                if not cards:
-                    cards = page.locator('a[href*="/travel-guide/attraction/"]').all()
+                poi_cards = page.locator('div.PoiCell_outerV2_pc__ZOyTY').all()
+                if not poi_cards:
+                    poi_cards = page.locator('div[class*="PoiCell"], div[class*="poilist-item"]').all()
 
-                for card in cards:
+                for card in poi_cards:
                     try:
-                        # Прицельно выцепляем текст только из тегов заголовков внутри карточки
-                        title_el = card.locator('h2, h3, .title, a.poilist-card-title').first
+                        title_el = card.locator('h2.Title_titleText_pc__rCDPs, h2').first
                         if title_el.count() > 0:
                             txt = title_el.inner_text().strip()
                         else:
-                            txt = card.inner_text().strip()
-
-                        if "\n" in txt:
-                            lines = [l.strip() for l in txt.split("\n") if l.strip()]
-                            txt = lines[0] if lines else txt
+                            continue
 
                         if txt and len(txt) > 2:
-                            txt_lower = txt.lower()
-                            
-                            category_check = [
-                                "sightseeing", "night view", "boat tour", "exhibitions", "concerts",
-                                "popular restaurants", "popular destinations", "recommended attractions",
-                                "more recommendations", "popular types"
-                            ]
-                            if any(cat == txt_lower for cat in category_check) or txt_lower.startswith(("london |", "rome |", "paris |")):
-                                continue
-
                             if txt not in seen_names:
                                 seen_names.add(txt)
                                 collected_names.append(txt)
@@ -180,7 +173,7 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                     stuck_count = 0
 
                 if scroll_step % 20 == 0:
-                    print(f"Собрано уникальных объектов на текущий момент: {len(collected_names)}...")
+                    print(f"Собрано объектов на текущий момент: {len(collected_names)}...")
 
             final_names = collected_names[:limit]
             
