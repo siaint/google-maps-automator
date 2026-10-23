@@ -1,20 +1,2018 @@
 [
   {
-    "name": "鄂尔多斯 成吉思汗陵",
-    "list_name": "Тест автоматизации",
-    "status": "Готово",
+    "id": 1,
+    "name": "Colosseum",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
     "error": ""
   },
   {
-    "name": "巴彦淖尔 妙高寺",
-    "list_name": "Тест автоматизации",
-    "status": "Ошибка",
-    "error": "ИИ отклонил: Запрошенный объект '妙高寺' (Мяогаосы) в Баян-Нуре не соответствует открытой карточке '甘露寺' (Ганьлусы), так как это разные буддийские храмы."
+    "id": 2,
+    "name": "Pantheon",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
   },
   {
-    "name": "慈灯寺",
-    "list_name": "Тест автоматизации",
-    "status": "Готово",
+    "id": 3,
+    "name": "Borghese Gallery and Museum",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 4,
+    "name": "Castel Sant'Angelo",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 5,
+    "name": "Roman Forum",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 6,
+    "name": "Villa Borghese",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 7,
+    "name": "Trevi Fountain",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 8,
+    "name": "Mouth of Truth",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 9,
+    "name": "Museums in Rome",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 10,
+    "name": "Arch of Constantine",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 11,
+    "name": "Civita di Bagnoregio",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 12,
+    "name": "Spanish Steps",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 13,
+    "name": "National Roman Museum - Palazzo Massimo",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 14,
+    "name": "Big Bus Tours Rome",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 15,
+    "name": "Palazzo Colonna",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 16,
+    "name": "McArthurGlen Designer Outlet Castel Romano",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 17,
+    "name": "Piazza Venezia",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 18,
+    "name": "Capitoline Museums",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 19,
+    "name": "Palatine Hill",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 20,
+    "name": "Museum Leonardo Da Vinci Experience",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 21,
+    "name": "Doria Pamphili Gallery",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 22,
+    "name": "Chiesa di Sant'Ignazio di Loyola",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 23,
+    "name": "Piazza Navona",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 24,
+    "name": "National Gallery of Ancient Art in Barberini Palace",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 25,
+    "name": "Bob Dylan \"Rough And Rowdy Ways\" EU/UK Tour",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 26,
+    "name": "Villa Medici",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 27,
+    "name": "Capuchin Crypt",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 28,
+    "name": "Rome Pass",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 29,
+    "name": "Monument to Victor Emmanuel II",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 30,
+    "name": "Ponte Sant'Angelo",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 31,
+    "name": "National Gallery of Modern and Contemporary Art",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 32,
+    "name": "Baths of Caracalla",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 33,
+    "name": "Welcome To Rome",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 34,
+    "name": "2027 Coppa Italia Final",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 35,
+    "name": "Teatro dell'Opera di Roma",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 36,
+    "name": "Piazza del Campidoglio",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 37,
+    "name": "Papal Basilica of Saint Mary Major",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 38,
+    "name": "Campo de' Fiori",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 39,
+    "name": "Circus Maximus",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 40,
+    "name": "Piazza del Popolo",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 41,
+    "name": "Passeggiata del Pincio",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 42,
+    "name": "Basilica of Saint John Lateran",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 43,
+    "name": "Largo di Torre Argentina",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 44,
+    "name": "Olympic Stadium",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 45,
+    "name": "Bioparco",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 46,
+    "name": "Foro Italico",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 47,
+    "name": "Piazza Barberini",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 48,
+    "name": "The Orange Garden",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 49,
+    "name": "Janiculum Hill",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 50,
+    "name": "Museo di Roma - Palazzo Braschi",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 51,
+    "name": "Basilica of Santa Maria in Trastevere",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 52,
+    "name": "Auditorium Parco della Musica",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 53,
+    "name": "Palazzo della Civilta Italiana",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 54,
+    "name": "The Park of the Aqueducts",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 55,
+    "name": "Villa Doria Pamphili",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 56,
+    "name": "Trajan's Forum",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 57,
+    "name": "Papal Basilica of Saint Paul Outside the Walls",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 58,
+    "name": "Basilica of San Pietro in Vincoli",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 59,
+    "name": "Palazzo Borghese",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 60,
+    "name": "Cinecittà World",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 61,
+    "name": "Ponte Milvio",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 62,
+    "name": "Via dei Fori Imperiali",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 63,
+    "name": "MAXXI - National Museum of 21st Century Art",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 64,
+    "name": "Church of Santa Maria della Vittoria",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 65,
+    "name": "Fontana dei Quattro Fiumi",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 66,
+    "name": "Rione Monti",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 67,
+    "name": "Parco della Caffarella",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 68,
+    "name": "Domus Aurea",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 69,
+    "name": "Paola Water Fountain",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 70,
+    "name": "Museo dell'Ara Pacis",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 71,
+    "name": "Trastevere",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 72,
+    "name": "Catacombs of St. Callixtus",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 73,
+    "name": "The Great Opera Arias Concert",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 74,
+    "name": "Botanical Garden of Rome",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 75,
+    "name": "Palazzo dello Sport - Roma",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 76,
+    "name": "Colle Oppio and Terme di Traiano Park",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 77,
+    "name": "Theatre of Marcellus",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 78,
+    "name": "hu Roma camping in town",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 79,
+    "name": "Basilica of the Holy Cross in Jerusalem",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 80,
+    "name": "National Roman Museum, Baths of Diocletian",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 81,
+    "name": "Museo Nazionale Romano - Palazzo Altemps",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 82,
+    "name": "basilica san pietro",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 83,
+    "name": "The Leonardo Da Vinci Exhibition",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 84,
+    "name": "Roma | VASCO RESIDENCY SHOW - ROMA 2027",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 85,
+    "name": "National Museum of the Palazzo di Venezia",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 86,
+    "name": "Rome | J-AX 2026《VITA MORTE MIRACOLI》Tour",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 87,
+    "name": "Mercati di Traiano - Museo dei Fori Imperiali",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 88,
+    "name": "Giornata Nazionale del Trekking Urbano 2026",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 89,
+    "name": "Fontana della Barcaccia",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 90,
+    "name": "City Sightseeing",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 91,
+    "name": "Temple of Venus and Rome",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 92,
+    "name": "Vittorio Emanuele II Square",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 93,
+    "name": "Temple of Aesculapius",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 94,
+    "name": "Basilica of Saint Mary of the Angels and Martyrs",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 95,
+    "name": "Villa Ada",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 96,
+    "name": "Chiesa di Santa Maria in Aracoeli",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 97,
+    "name": "Romaeuropa Festival - REF2026",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 98,
+    "name": "Santa Maria in Cosmedin",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 99,
+    "name": "IKONO Roma",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 100,
+    "name": "Basilica of San Pietro in Vincoli",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 101,
+    "name": "Church of Saint Louis of the French",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 102,
+    "name": "Porta Portese",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 103,
+    "name": "Teatro Brancaccio",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 104,
+    "name": "Teatro di Ostia",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 105,
+    "name": "Cloister of Bramante",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 106,
+    "name": "Monte Palatino",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 107,
+    "name": "Hydromania",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 108,
+    "name": "Basilica of San Clemente",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 109,
+    "name": "Church of the Most Holy Name of Jesus",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 110,
+    "name": "Villa d'Este",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 111,
+    "name": "Riserva Naturale Valle dell'Aniene",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 112,
+    "name": "Roma Convention Center La Nuvola",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 113,
+    "name": "Roman Coast State Nature Reserve",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 114,
+    "name": "Scuderie del Quirinale",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 115,
+    "name": "Palazzo delle Esposizioni",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 116,
+    "name": "Porta musei vaticani",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 117,
+    "name": "Palazzo Bonaparte",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 118,
+    "name": "Teatro Olimpico",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 119,
+    "name": "Piazza della Repubblica",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 120,
+    "name": "Fiera di Roma Entrance North",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 121,
+    "name": "the Torlonia museum Rome",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 122,
+    "name": "Luneur Park",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 123,
+    "name": "Temple of Hadrian",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 124,
+    "name": "Pyramid of Caius Cestius",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 125,
+    "name": "Turtle Fountain",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 126,
+    "name": "Rome | Lynyrd Skynyrd Tour 2027",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 127,
+    "name": "National Etruscan Museum of Villa Giulia",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 128,
+    "name": "Catacombs of Saint Sebastian",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 129,
+    "name": "Auditorium Conciliazione",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 130,
+    "name": "Altar of the Fatherland",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 131,
+    "name": "Keyhole of the Order of Malta",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 132,
+    "name": "This is Wonderland - Pinocchio, Christmas Edition",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 133,
+    "name": "Teatro Sistina",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 134,
+    "name": "Centrale Montemartini",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 135,
+    "name": "Via Veneto",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 136,
+    "name": "Zero-Gravity Roma",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 137,
+    "name": "Quirinal Palace",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 138,
+    "name": "Fontana del Tritone",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 139,
+    "name": "Explora",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 140,
+    "name": "Trajan's Column",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 141,
+    "name": "Basilica of Sant'Andrea della Valle",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 142,
+    "name": "Arch of Titus",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 143,
+    "name": "Capannelle Racecourse",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 144,
+    "name": "Larger Gate",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 145,
+    "name": "Trinità dei Monti",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 146,
+    "name": "Pontifical Sanctuary of the Holy Stairs",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 147,
+    "name": "Marcigliana Nature Reserve",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 148,
+    "name": "Neptune Fountain",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 149,
+    "name": "Ponte Garibaldi",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 150,
+    "name": "Basilica Santa Cecilia in Trastevere",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 151,
+    "name": "Genzano di Roma | IRAMA | A Chi Ci Sarà Sempre - Palasport 2026",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 152,
+    "name": "Villa Gordiani",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 153,
+    "name": "MACRO - Museo d'Arte Contemporanea",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 154,
+    "name": "InRome Cooking Classes",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 155,
+    "name": "Basilica di Sant'Andrea delle Fratte",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 156,
+    "name": "Parco di Tor di Quinto",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 157,
+    "name": "MONK",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 158,
+    "name": "River Tiber",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 159,
+    "name": "Rome | Tedua<TED RYAN>Tour",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 160,
+    "name": "Parco archeologico del Colosseo",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 161,
+    "name": "Museo delle Illusioni Roma",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 162,
+    "name": "Tiber Island",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 163,
+    "name": "Rome | Elodie Concert",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 164,
+    "name": "Catacombs of Domitilla",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 165,
+    "name": "Great Synagogue of Rome",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 166,
+    "name": "Fiera di Roma - Ingresso Est",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 167,
+    "name": "Basilica of St. Mary of the Altar of Heaven",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 168,
+    "name": "Fountain of the Frogs",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 169,
+    "name": "Basilica of Saint Mary of Minerva",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 170,
+    "name": "Sant'Agnese in Agone",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 171,
+    "name": "St. Paul's Within the Walls",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 172,
+    "name": "Parco Giovanni Palatucci",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 173,
+    "name": "Museo Leonardo da Vinci - Piazza del Popolo",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 174,
+    "name": "IOBUS Rome: Hop-on Hop-off Panoramic Open Bus Tour",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 175,
+    "name": "Riserva Naturale di Decima-Malafede",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 176,
+    "name": "Ponte Fabricio",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 177,
+    "name": "Villa Farnesina",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 178,
+    "name": "Teatro Ghione",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 179,
+    "name": "Ambra Jovinelli Theater",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 180,
+    "name": "Parco Schuster",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 181,
+    "name": "Parco Giochi L'Isola Felice",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 182,
+    "name": "Rome · Blue 2026 Concert",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 183,
+    "name": "Nuovo Teatro Orione",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 184,
+    "name": "Piazza di Siena",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 185,
+    "name": "Magic Escape Room Roma 2",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 186,
+    "name": "Kill Joy",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 187,
+    "name": "Spiaggia Libera Castel Porziano - Cancello 2",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 188,
+    "name": "Villa Sciarra",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 189,
+    "name": "Rome | Massimo Pericolo《Live Palazzetti》Tour",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 190,
+    "name": "Abbazia delle Tre Fontane",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 191,
+    "name": "Ponte Vittorio Emanuele II",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 192,
+    "name": "Parish Basilica of Santa Maria del Popolo",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 193,
+    "name": "Portico of Octavia",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 194,
+    "name": "Magic Room Escape",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 195,
+    "name": "Basilica of Saints Cosmas and Damian",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 196,
+    "name": "Bibo Babo Parco Giochi",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 197,
+    "name": "Museum of Dreamers",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 198,
+    "name": "Le Domus Romane di Palazzo Valentini",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 199,
+    "name": "My Best Tour",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 200,
+    "name": "Galleria Spada",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 201,
+    "name": "CSOA Forte Prenestino",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 202,
+    "name": "Parco di Monte Ciocci",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 203,
+    "name": "Riserva Naturale dell'Insugherata",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 204,
+    "name": "East of Via del Corso",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 205,
+    "name": "La Citta dell'Altra Economia",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 206,
+    "name": "Comprensorio Santa Maria della Pietà",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 207,
+    "name": "Parco Regionale dell'Appia Antica",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 208,
+    "name": "Colosseum meeting point Touristation Aracoeli",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 209,
+    "name": "Villa Lazzaroni",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 210,
+    "name": "Column of Marcus Aurelius",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 211,
+    "name": "Teatro di Roma - Argentina",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 212,
+    "name": "Parrocchia Santa Maria in Vallicella",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 213,
+    "name": "Multisala Barberini",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 214,
+    "name": "Galleria Nazionale di Arte Antica - Galleria Corsini",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 215,
+    "name": "Basilica of Saint Praxedes",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 216,
+    "name": "Museo Delle Cere",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 217,
+    "name": "Garden of the Cascades",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 218,
+    "name": "Jewish Museum",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 219,
+    "name": "TRIBE Escape Room Roma",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 220,
+    "name": "Rome | ANNA 2026<MILLION DOLLAR BABE>Tour",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 221,
+    "name": "Gigi Proietti Globe Theatre",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 222,
+    "name": "San Marcello al Corso",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 223,
+    "name": "Basilica of SS. Ambrose and Charles on the Corso",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 224,
+    "name": "Church Holy Spirit in Sassia",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 225,
+    "name": "Obelisco del Pantheon",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 226,
+    "name": "Casa Del Jazz",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 227,
+    "name": "Basilica di San Bartolomeo all'Isola",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 228,
+    "name": "Parco Delle Valli",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 229,
+    "name": "Magic Escape Room Roma 3",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 230,
+    "name": "Eneru - Escape room Roma San Giovanni - Alberone",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 231,
+    "name": "teatro sala umberto",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 232,
+    "name": "Rome | Glen Hansard 2026 Italian Tour",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 233,
+    "name": "Music Bridge",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 234,
+    "name": "Napoleonic Museum",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 235,
+    "name": "Teatro India",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 236,
+    "name": "Non-Catholic Cemetery",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 237,
+    "name": "Roma | Gabry Ponte - CIRCOTRON - The dance show",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 238,
+    "name": "Parco della mistica",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 239,
+    "name": "Palazzo dei Ricevimenti e dei Congressi",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 240,
+    "name": "Oasi Park",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 241,
+    "name": "Basilica of Saint Augustine",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 242,
+    "name": "Palazzo della Cancelleria",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 243,
+    "name": "Church of San Pietro in Montorio",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 244,
+    "name": "Catacombs of Priscilla",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 245,
+    "name": "Salaria Sport Village",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 246,
+    "name": "Sala Santa Cecilia",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 247,
+    "name": "Aurelian Walls",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 248,
+    "name": "Septimius Severus Arch",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 249,
+    "name": "Basilica of Saints John and Paul on the Caelian Hill",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 250,
+    "name": "罗马 · Patti Smith 2026 演唱会",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 251,
+    "name": "Atlantico",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 252,
+    "name": "Cineland",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 253,
+    "name": "Mamertine Prison",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 254,
+    "name": "Villa De Sanctis",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 255,
+    "name": "Santuario Santa Maria del Divino Amore",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 256,
+    "name": "Museo Civico di Zoologia",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 257,
+    "name": "Il Fantastico Mondo del Fantastico",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 258,
+    "name": "JoyVillage",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 259,
+    "name": "Basilica di Santo Stefano Rotondo al Celio",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 260,
+    "name": "Chiesa di Santa Maria in Traspontina",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 261,
+    "name": "Basilica of St Lawrence Outside the Walls",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 262,
+    "name": "Circolo Sottufficiali Marina Militare",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 263,
+    "name": "Stadium of Domitian",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 264,
+    "name": "Basilica of Saints Peter and Paul",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 265,
+    "name": "Orologio ad Acqua",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 266,
+    "name": "Vicus Caprarius - The Water City",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 267,
+    "name": "Spazio Novecento",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 268,
+    "name": "Church of Saint Mary of the Conception of the Friars Minor Capuchin",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 269,
+    "name": "Islamic Cultural Centre of Italy and Grand Mosque of Rome",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 270,
+    "name": "Palazzo Merulana",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 271,
+    "name": "LA CASA DEL MALE - Escape Room Roma",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 272,
+    "name": "Palazzo Farnese",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 273,
+    "name": "Church of St Charles at the Four Fountains",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 274,
+    "name": "Lupa Romana",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 275,
+    "name": "GAMM Game Museum",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 276,
+    "name": "Teatro Eliseo",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 277,
+    "name": "Basilica of Saint Sabina",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 278,
+    "name": "Game Over Escape Rooms - Rome Trastevere",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 279,
+    "name": "Casina delle Civette",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 280,
+    "name": "Stabilimento Balneare Plinius",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 281,
+    "name": "Mausoleum of Cecilia Metella",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 282,
+    "name": "Fountain of the Moor",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 283,
+    "name": "Parco delle Sabine",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 284,
+    "name": "Salone delle Fontane",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 285,
+    "name": "Cattolic office Giovanni Bosco",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 286,
+    "name": "Central Tennis Stadium",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 287,
+    "name": "Mausoleo delle Fosse Ardeatine",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
+    "error": ""
+  },
+  {
+    "id": 288,
+    "name": "Pineto Regional Park",
+    "list_name": "Хочу посетить",
+    "status": "В очереди",
     "error": ""
   }
 ]
