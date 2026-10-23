@@ -2,11 +2,12 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from config import PLACES_FILE
 from maps_automator import MapsAutomator
+from scrapers.trip_scraper import scrape_trip_attractions
 
 automator = MapsAutomator()
 executor = ThreadPoolExecutor(max_workers=1)
@@ -104,7 +105,6 @@ def _sync_process(item_id: int):
         target["status"] = "Готово"
         target["error"] = ""
     else:
-        # Если прервано пользователем, ставим статус "Отменено"
         if automator.is_cancelled or message == "Прервано пользователем":
             target["status"] = "Отменено"
             target["error"] = "Прервано пользователем"
@@ -125,6 +125,29 @@ async def process_one(item_id: int):
     if not target:
         return JSONResponse({"status": "not_found", "id": item_id})
     return JSONResponse({"status": "success" if target.get("status") == "Готово" else "failed", "message": target.get("error", ""), "id": item_id})
+
+
+# Эндпоинт для запуска сбора с Trip.com
+@app.post("/api/scrape/trip")
+async def scrape_trip(region: str = Form(...), limit: int = Form(300), list_name: str = Form("Хочу посетить")):
+    import asyncio
+    global places_cache
+
+    def _run_trip_scraping():
+        try:
+            scrape_trip_attractions(region, list_name=list_name, limit=limit)
+            return True, None
+        except Exception as e:
+            return False, str(e)
+
+    loop = asyncio.get_running_loop()
+    success, error_message = await loop.run_in_executor(executor, _run_trip_scraping)
+
+    if success:
+        places_cache = load_places()
+        return JSONResponse({"status": "success", "count": len(places_cache)})
+    else:
+        return JSONResponse({"status": "error", "message": error_message}, status_code=500)
 
 
 @app.post("/api/stop")

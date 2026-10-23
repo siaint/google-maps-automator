@@ -18,7 +18,6 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
     results = []
     
     with sync_playwright() as p:
-        # Запускаем в видимом режиме, но окно уводим за пределы экрана (чтобы не мешало)
         context = p.chromium.launch_persistent_context(
             user_data_dir=str(TRIP_PROFILE_DIR.resolve()),
             headless=False,
@@ -126,8 +125,7 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
             print("Ожидание прорисовки списка достопримечательностей...")
             page.wait_for_timeout(6000)
 
-            # 4. Плавный скролл с дедупликацией по уникальному URL и надежным запасом попыток
-            collected_items = []
+            # 4. Плавный скролл с выводом каждого найденного объекта в реальном времени
             seen_hrefs = set()
             max_scrolls = 600
             scroll_pause = 3000
@@ -143,9 +141,10 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                 if not poi_cards:
                     poi_cards = page.locator('div[class*="PoiCell"], div[class*="poilist-item"]').all()
 
+                new_items_in_step = 0
+
                 for card in poi_cards:
                     try:
-                        # Извлекаем ссылку как уникальный идентификатор карточки
                         link_el = card.locator('a[href*="/travel-guide/attraction/"], a[href]').first
                         if link_el.count() > 0:
                             href = link_el.get_attribute("href")
@@ -162,14 +161,28 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                         if txt and clean_href and len(txt) > 2:
                             txt = txt.split('\n')[0].strip()
                             
-                            # Проверка уникальности по URL для отсечения повторов виртуального скролла
                             if clean_href not in seen_hrefs:
                                 seen_hrefs.add(clean_href)
-                                collected_items.append(txt)
+                                new_item = {
+                                    "id": len(results) + 1,
+                                    "name": txt,
+                                    "list_name": list_name,
+                                    "status": "В очереди",
+                                    "error": ""
+                                }
+                                results.append(new_item)
+                                new_items_in_step += 1
+                                
+                                # Сразу выводим в консоль (и в лог сайта через перенаправление stdout)
+                                print(f"  [{new_item['id']}] Attraction: {txt}")
+
+                                # Если достигли лимита — сразу прерываемся
+                                if len(results) >= limit:
+                                    break
                     except Exception:
                         continue
                 
-                if len(collected_items) >= limit:
+                if len(results) >= limit:
                     print(f"Достигнут целевой лимит в {limit} объектов.")
                     break
 
@@ -192,21 +205,6 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                         page.wait_for_timeout(3000)
                 else:
                     stuck_count = 0
-
-                if scroll_step % 15 == 0:
-                    print(f"Собрано уникальных объектов: {len(collected_items)}...")
-
-            final_names = collected_items[:limit]
-            
-            for idx, name in enumerate(final_names, 1):
-                results.append({
-                    "id": idx,
-                    "name": name,
-                    "list_name": list_name,
-                    "status": "В очереди",
-                    "error": ""
-                })
-                print(f"  [{idx}] Attraction: {name}")
 
         except Exception as e:
             print(f"Ошибка при парсинге достопримечательностей Trip.com: {e}")
