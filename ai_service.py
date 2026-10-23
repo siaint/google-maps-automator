@@ -29,7 +29,7 @@ def rate_attraction(place_name: str, region: str = "", original_name: str = "") 
         response_mime_type="application/json",
     )
 
-    models_to_try = ["gemini-3.5-flash", "gemini-3.5-flash-lite"]
+    models_to_try = ["gemini-3.8-flash", "gemini-3.5-flash-lite"]
     last_err = ""
 
     for model_name in models_to_try:
@@ -140,10 +140,10 @@ def generate_guide(place_name: str, card_title: str, card_context: str, status_c
             return "", "Прервано пользователем"
             
         try:
-            report(f"7/7: Генерация gemini-3.5-flash ({attempt}/{max_attempts})...")
+            report(f"7/7: Генерация gemini-3.8-flash ({attempt}/{max_attempts})...")
             start_t = time.time()
             resp = client.models.generate_content(
-                model="gemini-3.5-flash",
+                model="gemini-3.8-flash",
                 contents=user_query,
                 config=config_guide,
             )
@@ -159,7 +159,7 @@ def generate_guide(place_name: str, card_title: str, card_context: str, status_c
             break
 
     if not text:
-        return "", f"Ошибка генерации gemini-3.5-flash: {last_err}"
+        return "", f"Ошибка генерации gemini-3.8-flash: {last_err}"
 
     if len(text) > 3600:
         if check_cancelled and check_cancelled():
@@ -169,7 +169,7 @@ def generate_guide(place_name: str, card_title: str, card_context: str, status_c
         compress_instruction = "Ты — технический редактор. Сжми текст до 3200-3400 символов, сохранив все секции и факты."
         try:
             comp_resp = client.models.generate_content(
-                model="gemini-3.5-flash",
+                model="gemini-3.8-flash",
                 contents=f"Сократи следующий текст строго до 3200-3400 символов:\n\n{text}",
                 config=types.GenerateContentConfig(
                     system_instruction=compress_instruction,

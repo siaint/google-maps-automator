@@ -172,7 +172,7 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
 
             print(f"\nСобрано ссылок из списка: {len(raw_attractions)}. Начинаем парсинг детальных карточек...")
 
-            # 5. Проваливаемся в каждую карточку для получения оригинального названия
+            # 5. Проваливаемся в каждую карточку для получения оригинального названия и превью
             for idx, item in enumerate(raw_attractions, 1):
                 if stop_callback and stop_callback():
                     print("\n[!] Остановка сбора по запросу пользователя.")
@@ -184,10 +184,12 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                     detail_url = f"https://uk.trip.com{detail_url}"
 
                 orig_name = ""
+                img_url = ""
                 try:
                     page.goto(detail_url, wait_until="domcontentloaded", timeout=15000)
                     page.wait_for_timeout(1500)
 
+                    # Ищем оригинальное название
                     orig_el = page.locator('h1 + div, div[class*="subTitle"], span[class*="local"], h2[class*="sub"]').first
                     if orig_el.count() > 0:
                         candidate = orig_el.inner_text().strip().split('\n')[0]
@@ -202,6 +204,27 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                                 if len(htext) < 30:
                                     orig_name = htext
                                     break
+
+                    # Расширенный поиск картинки-превью в шапке карточки
+                    for img_sel in [
+                        'div[class*="Banner"] img', 
+                        'div[class*="gallery"] img', 
+                        'div[class*="photo"] img', 
+                        'img[class*="banner"]', 
+                        'div.banner-image img',
+                        '.view-gallery img',
+                        'img'
+                    ]:
+                        img_el = page.locator(img_sel).first
+                        if img_el.count() > 0:
+                            candidate_url = (
+                                img_el.get_attribute("src") or 
+                                img_el.get_attribute("data-src") or 
+                                img_el.get_attribute("data-original") or ""
+                            )
+                            if candidate_url and candidate_url.startswith("http"):
+                                img_url = candidate_url
+                                break
                 except Exception as e:
                     print(f"  [!] Ошибка при парсинге карточки {en_name}: {e}")
 
@@ -209,8 +232,9 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                     "id": len(results) + 1,
                     "name": en_name,
                     "original_name": orig_name,
-                    "url": full_detail_url,  # Сохраняем ссылку на Trip.com
-                    "search_region": region_query,  # Фиксируем реальный регион поиска
+                    "url": detail_url,
+                    "image": img_url,  # Надежно извлеченная ссылка на картинку
+                    "search_region": region_query,
                     "rating": "-",
                     "rating_comment": "",
                     "list_name": list_name,

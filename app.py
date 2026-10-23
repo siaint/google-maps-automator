@@ -178,6 +178,7 @@ async def transfer_to_evaluated(request: Request):
         raw_name = (item.get("name") or "").strip()
         orig_name = (item.get("original_name") or "").strip()
         item_url = (item.get("url") or "").strip()
+        item_img = (item.get("image") or "").strip() # Пробрасываем картинку
         search_reg = (item.get("search_region") or "").strip()
         raw_list = (item.get("list_name") or "Хочу посетить").strip()
         if not raw_name:
@@ -190,6 +191,7 @@ async def transfer_to_evaluated(request: Request):
                 "name": raw_name,
                 "original_name": orig_name,
                 "url": item_url,
+                "image": item_img,
                 "search_region": search_reg,
                 "rating": item.get("rating", "-"),
                 "rating_comment": item.get("rating_comment", ""),
@@ -293,6 +295,7 @@ async def transfer_to_places(request: Request):
         raw_name = (item.get("name") or "").strip()
         orig_name = (item.get("original_name") or "").strip()
         item_url = (item.get("url") or "").strip()
+        item_img = (item.get("image") or "").strip()
         search_reg = (item.get("search_region") or "").strip()
         raw_list = (item.get("list_name") or "Хочу посетить").strip()
         if not raw_name:
@@ -305,6 +308,7 @@ async def transfer_to_places(request: Request):
                 "name": raw_name,
                 "original_name": orig_name,
                 "url": item_url,
+                "image": item_img,
                 "search_region": search_reg,
                 "rating": item.get("rating", "-"),
                 "rating_comment": item.get("rating_comment", ""),
