@@ -131,7 +131,6 @@ async def scrape_trip(region: str = Form(...), limit: int = Form(300), list_name
 async def stop_trip_scrape():
     global trip_cancelled
     trip_cancelled = True
-    print("\n[!] Сигнал отмены отправлен в скрейпер...")
     return JSONResponse({"status": "stopping"})
 
 
@@ -156,7 +155,6 @@ def clear_scraped():
     return JSONResponse({"status": "cleared"})
 
 
-# Перенос из Скрейпера (Вкладка 1) в Оценку (Вкладка 2)
 @app.post("/api/scraped/transfer_to_evaluated")
 async def transfer_to_evaluated(request: Request):
     global evaluated_cache
@@ -178,7 +176,7 @@ async def transfer_to_evaluated(request: Request):
         raw_name = (item.get("name") or "").strip()
         orig_name = (item.get("original_name") or "").strip()
         item_url = (item.get("url") or "").strip()
-        item_img = (item.get("image") or "").strip() # Пробрасываем картинку
+        item_img = (item.get("image") or "").strip()
         search_reg = (item.get("search_region") or "").strip()
         raw_list = (item.get("list_name") or "Хочу посетить").strip()
         if not raw_name:
@@ -219,6 +217,7 @@ async def rate_place_endpoint(request: Request):
         place_name = body.get("name", "").strip()
         original_name = body.get("original_name", "").strip()
         region = body.get("region", "").strip()
+        full_desc = body.get("full_description", False)
     except Exception:
         return JSONResponse({"status": "error", "message": "Некорректный JSON"}, status_code=400)
 
@@ -226,11 +225,11 @@ async def rate_place_endpoint(request: Request):
         return JSONResponse({"status": "error", "message": "Не указано имя объекта"}, status_code=400)
 
     loop = asyncio.get_running_loop()
-    res = await loop.run_in_executor(executor, ai_service.rate_attraction, place_name, region, original_name)
+    res = await loop.run_in_executor(executor, ai_service.rate_attraction, place_name, region, original_name, full_desc)
 
-    updated = False
     for item in evaluated_cache:
         if item.get("name", "").strip().lower() == place_name.lower():
+            item["rating"] = res.get("personal_rating", 0.0)
             item["personal_rating"] = res.get("personal_rating", 0.0)
             item["global_rating"] = res.get("global_rating", 0.0)
             item["rating_comment"] = res.get("comment", "")
@@ -238,20 +237,7 @@ async def rate_place_endpoint(request: Request):
                 item["original_name"] = original_name
             if region and not item.get("search_region"):
                 item["search_region"] = region
-            updated = True
             break
-
-    if not updated:
-        evaluated_cache.append({
-            "id": len(evaluated_cache) + 1,
-            "name": place_name,
-            "original_name": original_name,
-            "search_region": region,
-            "personal_rating": res.get("personal_rating", 0.0),
-            "global_rating": res.get("global_rating", 0.0),
-            "rating_comment": res.get("comment", ""),
-            "list_name": "Хочу посетить"
-        })
 
     save_json_file(EVALUATED_FILE, evaluated_cache)
     return JSONResponse({"status": "success", "result": res})
@@ -273,7 +259,7 @@ def clear_evaluated():
     return JSONResponse({"status": "cleared"})
 
 
-# Перенос из Оценки (Вкладка 2) в Импорт карт (Вкладка 3)
+# Перенос из Оценки (Вкладка 2) в Импорт карт (Вкладка 3) с готовым текстом заметки
 @app.post("/api/evaluated/transfer_to_places")
 async def transfer_to_places(request: Request):
     global places_cache
@@ -298,6 +284,8 @@ async def transfer_to_places(request: Request):
         item_img = (item.get("image") or "").strip()
         search_reg = (item.get("search_region") or "").strip()
         raw_list = (item.get("list_name") or "Хочу посетить").strip()
+        guide_text = (item.get("rating_comment") or "").strip() # Готовый гайд со 2-й вкладки
+        
         if not raw_name:
             continue
         
@@ -311,7 +299,7 @@ async def transfer_to_places(request: Request):
                 "image": item_img,
                 "search_region": search_reg,
                 "rating": item.get("rating", "-"),
-                "rating_comment": item.get("rating_comment", ""),
+                "rating_comment": guide_text,  # Передаем готовый текст как заметку
                 "list_name": raw_list,
                 "status": "В очереди",
                 "error": ""

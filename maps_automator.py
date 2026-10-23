@@ -42,7 +42,6 @@ class MapsAutomator:
                 self.page = self.context.new_page()
 
     def stop(self):
-        """Гарантированно закрывает окно браузера."""
         if self.context:
             try:
                 self.context.close()
@@ -57,12 +56,10 @@ class MapsAutomator:
             self.playwright = None
 
     def cancel(self):
-        """Мгновенно прерывает работу и закрывает браузер."""
         self.is_cancelled = True
         self.stop()
 
     def _wait_cancelled(self, timeout_ms: int) -> bool:
-        """Ждет заданное время, но каждые 100мс проверяет флаг отмены."""
         elapsed = 0
         while elapsed < timeout_ms:
             if self.is_cancelled:
@@ -96,32 +93,21 @@ class MapsAutomator:
                         return txt
             except Exception:
                 continue
-
-        try:
-            page_title = self.page.title().strip()
-            if " - Google " in page_title or " – Google " in page_title:
-                clean = re.split(r" [-–] Google ", page_title)[0].strip()
-                if clean and clean.lower() not in ["google карты", "google maps", "поиск"]:
-                    return clean
-        except Exception:
-            pass
         return ""
 
     def process_item(self, place_data, status_cb=None) -> tuple[bool, str]:
-        """
-        Принимает либо словарь объекта (содержащий name, original_name, search_region, list_name),
-        либо по старинке строку place_name (для обратной совместимости).
-        """
         if isinstance(place_data, dict):
             place_name = place_data.get("name", "")
             original_name = place_data.get("original_name", "")
             search_region = place_data.get("search_region", "")
             list_name = place_data.get("list_name", "Хочу посетить")
+            guide_text = place_data.get("rating_comment", "").strip()
         else:
             place_name = str(place_data)
             original_name = ""
             search_region = ""
             list_name = "Хочу посетить"
+            guide_text = ""
 
         def report(step_text: str):
             if status_cb:
@@ -137,7 +123,6 @@ class MapsAutomator:
 
             page = self.page
 
-            # 1. Формируем поисковый запрос (приоритет у оригинального названия + региона)
             query_parts = []
             if original_name:
                 query_parts.append(original_name)
@@ -154,7 +139,6 @@ class MapsAutomator:
             if self._wait_cancelled(3000):
                 return False, "Прервано пользователем"
 
-            # 2. Выдача или карточка
             feed = page.locator('div[role="feed"]')
             if feed.is_visible(timeout=2500):
                 report("2/7: Выбор первого объекта из поисковой выдачи...")
@@ -171,7 +155,6 @@ class MapsAutomator:
             if self.is_cancelled:
                 return False, "Прервано пользователем"
 
-            # 3. Заголовок карточки
             report("3/7: Чтение карточки...")
             title = ""
             for _ in range(8):
@@ -190,7 +173,7 @@ class MapsAutomator:
             context_texts = card_panel.locator("h2, span.fontBodyMedium").all_inner_texts()
             card_context = " | ".join([t.strip() for t in context_texts[:5] if t.strip()])
 
-            # 4. Валидация ИИ (проверяем по основному имени)
+            # 4. Валидация ИИ (проверяем по основному имени и контексту карт)
             is_match, reason = ai_service.verify_place_match(place_name, title, card_context, status_cb=report)
             if not is_match:
                 return False, f"ИИ отклонил: {reason}"
@@ -198,7 +181,6 @@ class MapsAutomator:
             if self.is_cancelled:
                 return False, "Прервано пользователем"
 
-            # 5. Открытие меню сохранения
             report("5/7: Меню сохранения...")
             save_btn = card_panel.locator(
                 'button[data-value*="Сохран"], button[aria-label*="Сохран"], '
@@ -211,7 +193,6 @@ class MapsAutomator:
             if self._wait_cancelled(2000):
                 return False, "Прервано пользователем"
 
-            # 6. Поиск списка и установка чекбокса
             report(f"6/7: Поиск списка \"{list_name}\"...")
             target_text_locator = page.get_by_text(list_name, exact=True).first
 
@@ -233,12 +214,7 @@ class MapsAutomator:
                     menu_item = target_text_locator
 
                 aria_val = menu_item.get_attribute("aria-checked")
-                is_checked = (aria_val == "true")
-
-                if is_checked:
-                    report(f"Объект уже отмечен в списке \"{list_name}\". Ничего не нажимаем.")
-                else:
-                    report(f"Ставим галочку в списке \"{list_name}\"...")
+                if aria_val != "true":
                     menu_item.click(force=True)
                     if self._wait_cancelled(2000):
                         return False, "Прервано пользователем"
@@ -250,8 +226,8 @@ class MapsAutomator:
             if self._wait_cancelled(1200):
                 return False, "Прервано пользователем"
 
-            # 7. Работа с заметкой
-            report("7/7: Проверка заметки на карточке...")
+            # 7. Вставка готовой заметки без повторной генерации
+            report("7/7: Открытие поля заметки...")
             card_panel = self._get_card_panel()
 
             accordion_header = card_panel.locator(
@@ -266,17 +242,6 @@ class MapsAutomator:
                     accordion_header.click(force=True)
                     if self._wait_cancelled(1000):
                         return False, "Прервано пользователем"
-
-            existing_note = ""
-            for nb in card_panel.locator('div[role="button"][tabindex="0"], div.fontBodyMedium').all():
-                ntxt = nb.inner_text().strip()
-                if len(ntxt) > 100 and ("[" in ntxt or "5A" in ntxt or "Рейтинг" in ntxt):
-                    existing_note = ntxt
-                    break
-
-            if len(existing_note) > 100:
-                report("Заметка уже заполнена ранее.")
-                return True, f"Уже сохранён в '{list_name}' с готовой заметкой"
 
             note_btn = card_panel.locator(
                 'button:has-text("Добавить заметку"), '
@@ -304,29 +269,12 @@ class MapsAutomator:
 
             if not found_ta:
                 page.screenshot(path="debug_maps_card.png", full_page=False)
-                return False, "Не удалось открыть поле заметки на карточке (см. debug_maps_card.png)"
+                return False, "Не удалось открыть поле заметки на карточке"
 
-            if len(card_note_area.input_value().strip()) > 100:
-                report("Заметка уже заполнена ранее.")
-                return True, f"Уже сохранён в '{list_name}' с готовой заметкой"
+            if not guide_text:
+                guide_text = f"Объект: {place_name} ({search_region})"
 
-            if self.is_cancelled:
-                return False, "Прервано пользователем"
-
-            # Генерация гайда через Gemini
-            guide_text, err = ai_service.generate_guide(
-                place_name, title, card_context, 
-                status_cb=report, 
-                check_cancelled=lambda: self.is_cancelled
-            )
-            if err:
-                return False, f"Ошибка скилла: {err}"
-
-            if self.is_cancelled:
-                return False, "Прервано пользователем"
-
-            # Вставка и сохранение
-            report(f"7/7: Вставка заметки ({len(guide_text)} зн.)...")
+            report(f"7/7: Вставка готовой заметки ({len(guide_text)} зн.)...")
             card_note_area.scroll_into_view_if_needed()
             card_note_area.click(force=True)
             card_note_area.fill(guide_text)
@@ -345,9 +293,7 @@ class MapsAutomator:
         except Exception as e:
             if self.is_cancelled or "closed" in str(e).lower():
                 return False, "Прервано пользователем"
-            print(f">>> [EXC] Исключение: {e}", flush=True)
             return False, f"Исключение браузера: {e}"
 
         finally:
-            report("Закрытие браузера...")
             self.stop()
