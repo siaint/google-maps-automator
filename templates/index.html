@@ -259,7 +259,6 @@
         document.getElementById(tabId).classList.add('active');
         btn.classList.add('active');
 
-        // При переключении подгружаем свежие данные для вкладки
         if (tabId === 'scraperTab') loadScrapedData();
         if (tabId === 'evaluateTab') loadEvaluatedData();
         if (tabId === 'importTab') loadPlacesData();
@@ -298,12 +297,21 @@
         items.forEach((item, idx) => {
             const tr = document.createElement('tr');
             const itemName = (item.name || '').replace(/'/g, "\\'");
+            
+            let nameHtml = `<strong>${item.name}</strong>`;
+            if (item.original_name) {
+                nameHtml += `<div style="font-size: 13px; color: #9ca3af; margin-top: 2px;">${item.original_name}</div>`;
+            }
+            if (item.url) {
+                nameHtml += ` <a href="${item.url}" target="_blank" title="Открыть на Trip.com" style="font-size: 12px; color: #2d88ff; text-decoration: none; margin-left: 6px;">🔗 [Trip]</a>`;
+            }
+
             tr.innerHTML = `
                 <td class="checkbox-cell">
                     <input type="checkbox" class="scraper-item-check" data-id="${item.id}" checked>
                 </td>
                 <td>${idx + 1}</td>
-                <td><strong>${item.name}</strong></td>
+                <td>${nameHtml}</td>
                 <td>${item.list_name}</td>
                 <td class="col-delete">
                     <button class="btn-delete" onclick="deleteScraped(${item.id}, '${itemName}')" title="Удалить">
@@ -372,13 +380,21 @@
             const commentHtml = item.rating_comment ? `<div class="comment-text">${item.rating_comment}</div>` : '';
             const itemName = (item.name || '').replace(/'/g, "\\'");
 
+            let nameHtml = `<strong>${item.name}</strong>`;
+            if (item.original_name) {
+                nameHtml += `<div style="font-size: 13px; color: #9ca3af; margin-top: 2px;">${item.original_name}</div>`;
+            }
+            if (item.url) {
+                nameHtml += ` <a href="${item.url}" target="_blank" title="Открыть на Trip.com" style="font-size: 12px; color: #2d88ff; text-decoration: none; margin-left: 6px;">🔗 [Trip]</a>`;
+            }
+
             tr.innerHTML = `
                 <td class="checkbox-cell">
                     <input type="checkbox" class="evaluated-item-check" data-id="${item.id}" checked>
                 </td>
                 <td>${idx + 1}</td>
                 <td>
-                    <strong>${item.name}</strong>
+                    ${nameHtml}
                     <div>${commentHtml}</div>
                 </td>
                 <td id="eval-cell-${item.id}">${ratingBadge}</td>
@@ -400,7 +416,7 @@
         const item = evaluatedItems.find(x => x.id === id);
         if (!item) return;
 
-        const region = document.getElementById('tripRegion').value.trim() || "Rome";
+        const region = item.search_region || "";
         const btn = document.getElementById(`btn-eval-${id}`);
         const cell = document.getElementById(`eval-cell-${id}`);
 
@@ -411,7 +427,11 @@
             const res = await fetch('/api/ai/rate_place', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: item.name, region: region })
+                body: JSON.stringify({ 
+                    name: item.name, 
+                    original_name: item.original_name || '', 
+                    region: region 
+                })
             });
             const data = await res.json();
             if (res.ok && data.status === 'success') {
@@ -508,9 +528,17 @@
 
             const itemName = (item.name || '').replace(/'/g, "\\'");
 
+            let nameHtml = `<strong>${item.name}</strong>`;
+            if (item.original_name) {
+                nameHtml += `<div style="font-size: 13px; color: #9ca3af; margin-top: 2px;">${item.original_name}</div>`;
+            }
+            if (item.url) {
+                nameHtml += ` <a href="${item.url}" target="_blank" title="Открыть на Trip.com" style="font-size: 12px; color: #2d88ff; text-decoration: none; margin-left: 6px;">🔗 [Trip]</a>`;
+            }
+
             tr.innerHTML = `
                 <td>${idx + 1}</td>
-                <td><strong>${item.name}</strong></td>
+                <td>${nameHtml}</td>
                 <td>${item.list_name || 'Хочу посетить'}</td>
                 <td>
                     <span class="status-badge ${badgeClass}" id="status-${item.id}">${item.status}</span>
@@ -636,7 +664,6 @@
         await loadPlacesData(true);
     }
 
-    // --- Скрейпер запуск ---
     async function runTripScraper() {
         const region = document.getElementById('tripRegion').value.trim();
         const limit = document.getElementById('tripLimit').value.trim();
@@ -696,7 +723,6 @@
         try { await fetch('/api/scrape/trip/stop', { method: 'POST' }); } catch (e) {}
     }
 
-    // При загрузке страницы подтягиваем данные первой вкладки
     loadScrapedData();
 </script>
 </body>

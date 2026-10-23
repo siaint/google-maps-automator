@@ -111,18 +111,12 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
             print(f"Переход к достопримечательностям: {target_attractions_url}")
             page.goto(target_attractions_url, wait_until="domcontentloaded", timeout=30000)
             print("Ожидание прорисовки списка достопримечательностей...")
-            page.wait_for_timeout(4500)
+            page.wait_for_timeout(3000)
 
-            # 4. Скролл и сбор
-            seen_hrefs = set()
+            # 4. Сбор ссылок и названий из списка со скроллом
+            raw_attractions = []
             max_scrolls = 600
             stuck_count = 0
-            reached_limit = False
-
-            try:
-                page.locator('#POI_LIST_BOX').hover(timeout=2000)
-            except Exception:
-                pass
 
             for scroll_step in range(max_scrolls):
                 if stop_callback and stop_callback():
@@ -132,9 +126,6 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                 poi_cards = page.locator('div.PoiCell_outerV2_pc__ZOyTY, div[class*="PoiCell"], div[class*="poilist-item"]').all()
 
                 for card in poi_cards:
-                    if stop_callback and stop_callback():
-                        break
-
                     try:
                         link_el = card.locator('a[href*="/travel-guide/attraction/"], a[href]').first
                         if link_el.count() == 0:
@@ -151,28 +142,14 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
 
                         if txt and clean_href and len(txt) > 2:
                             txt = txt.split('\n')[0].strip()
-                            
-                            if clean_href not in seen_hrefs:
-                                seen_hrefs.add(clean_href)
-                                new_item = {
-                                    "id": len(results) + 1,
-                                    "name": txt,
-                                    "rating": "-",
-                                    "rating_comment": "",
-                                    "list_name": list_name,
-                                    "status": "В очереди",
-                                    "error": ""
-                                }
-                                results.append(new_item)
-                                print(f"  [{new_item['id']}] Attraction: {txt}")
-
-                                if len(results) >= limit:
-                                    reached_limit = True
+                            if not any(x['href'] == clean_href for x in raw_attractions):
+                                raw_attractions.append({"name": txt, "href": clean_href})
+                                if len(raw_attractions) >= limit:
                                     break
                     except Exception:
                         continue
                 
-                if reached_limit or (stop_callback and stop_callback()):
+                if len(raw_attractions) >= limit:
                     break
 
                 prev_height = page.evaluate("document.body.scrollHeight")
@@ -193,15 +170,63 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                 else:
                     stuck_count = 0
 
-                if scroll_step > 0 and scroll_step % 10 == 0:
-                    print(f"--- Прогресс: собрано {len(results)} объектов... ---")
+            print(f"\nСобрано ссылок из списка: {len(raw_attractions)}. Начинаем парсинг детальных карточек...")
+
+            # 5. Проваливаемся в каждую карточку для получения оригинального названия
+            for idx, item in enumerate(raw_attractions, 1):
+                if stop_callback and stop_callback():
+                    print("\n[!] Остановка сбора по запросу пользователя.")
+                    break
+
+                en_name = item["name"]
+                detail_url = item["href"]
+                if not detail_url.startswith("http"):
+                    detail_url = f"https://uk.trip.com{detail_url}"
+
+                orig_name = ""
+                try:
+                    page.goto(detail_url, wait_until="domcontentloaded", timeout=15000)
+                    page.wait_for_timeout(1500)
+
+                    orig_el = page.locator('h1 + div, div[class*="subTitle"], span[class*="local"], h2[class*="sub"]').first
+                    if orig_el.count() > 0:
+                        candidate = orig_el.inner_text().strip().split('\n')[0]
+                        if candidate and candidate != en_name:
+                            orig_name = candidate
+
+                    if not orig_name:
+                        headers = page.locator('h1, h2, span').all()
+                        for h in headers:
+                            htext = h.inner_text().strip()
+                            if htext and htext != en_name and any('\u4e00' <= char <= '\u9fff' for char in htext):
+                                if len(htext) < 30:
+                                    orig_name = htext
+                                    break
+                except Exception as e:
+                    print(f"  [!] Ошибка при парсинге карточки {en_name}: {e}")
+
+                new_item = {
+                    "id": len(results) + 1,
+                    "name": en_name,
+                    "original_name": orig_name,
+                    "url": full_detail_url,  # Сохраняем ссылку на Trip.com
+                    "search_region": region_query,  # Фиксируем реальный регион поиска
+                    "rating": "-",
+                    "rating_comment": "",
+                    "list_name": list_name,
+                    "status": "В очереди",
+                    "error": ""
+                }
+                results.append(new_item)
+                display_str = f"{en_name} ({orig_name})" if orig_name else en_name
+                print(f"  [{new_item['id']}/{len(raw_attractions)}] Parsed: {display_str}")
 
         except Exception as e:
             print(f"Ошибка при сборе: {e}")
         finally:
             context.close()
 
-    print(f"\nВсего собрано в память: {len(results)} объектов.")
+    print(f"\nВсего успешно обработано: {len(results)} объектов.")
     return results
 
 if __name__ == "__main__":

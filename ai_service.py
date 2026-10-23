@@ -9,7 +9,7 @@ logger = logging.getLogger("ai_service")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 
-def rate_attraction(place_name: str, region: str = "") -> dict:
+def rate_attraction(place_name: str, region: str = "", original_name: str = "") -> dict:
     """
     Оценивает объект с умеренным thinking_budget=512 и автоповтором при 429/503.
     """
@@ -19,9 +19,9 @@ def rate_attraction(place_name: str, region: str = "") -> dict:
     with open(RATING_PROMPT_FILE, "r", encoding="utf-8") as f:
         rating_instruction = f.read().strip()
 
-    user_query = f'Объект для оценки: "{place_name}" (локация / регион: "{region}").'
+    orig_part = f' (оригинальное название / на местном языке: "{original_name}")' if original_name else ''
+    user_query = f'Объект для оценки: "{place_name}"{orig_part} (локация / регион: "{region}").'
 
-    # Возвращаем thinking, но снижаем бюджет до 512 для экономии квоты
     config = types.GenerateContentConfig(
         system_instruction=rating_instruction,
         temperature=0.2,

@@ -49,7 +49,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-# Универсальные функции загрузки/сохранения
 def load_json_file(file_path: Path) -> list:
     if not file_path.exists():
         return []
@@ -71,7 +70,6 @@ def save_json_file(file_path: Path, data: list):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-# Кэши для трех вкладок
 scraped_cache = load_json_file(SCRAPED_FILE)
 evaluated_cache = load_json_file(EVALUATED_FILE)
 places_cache = load_json_file(PLACES_FILE)
@@ -82,7 +80,6 @@ def index(request: Request):
     return templates.TemplateResponse(request=request, name="index.html")
 
 
-# --- Эндпоинты Вкладки 1: Скрейпер ---
 @app.get("/api/scraped")
 def get_scraped():
     global scraped_cache
@@ -179,6 +176,9 @@ async def transfer_to_evaluated(request: Request):
     added_count = 0
     for item in items:
         raw_name = (item.get("name") or "").strip()
+        orig_name = (item.get("original_name") or "").strip()
+        item_url = (item.get("url") or "").strip()
+        search_reg = (item.get("search_region") or "").strip()
         raw_list = (item.get("list_name") or "Хочу посетить").strip()
         if not raw_name:
             continue
@@ -188,6 +188,9 @@ async def transfer_to_evaluated(request: Request):
             evaluated_cache.append({
                 "id": len(evaluated_cache) + 1,
                 "name": raw_name,
+                "original_name": orig_name,
+                "url": item_url,
+                "search_region": search_reg,
                 "rating": item.get("rating", "-"),
                 "rating_comment": item.get("rating_comment", ""),
                 "list_name": raw_list
@@ -199,7 +202,6 @@ async def transfer_to_evaluated(request: Request):
     return JSONResponse({"status": "success", "added_count": added_count, "total_count": len(evaluated_cache)})
 
 
-# --- Эндпоинты Вкладки 2: Оценка ИИ ---
 @app.get("/api/evaluated")
 def get_evaluated():
     global evaluated_cache
@@ -213,6 +215,7 @@ async def rate_place_endpoint(request: Request):
     try:
         body = await request.json()
         place_name = body.get("name", "").strip()
+        original_name = body.get("original_name", "").strip()
         region = body.get("region", "").strip()
     except Exception:
         return JSONResponse({"status": "error", "message": "Некорректный JSON"}, status_code=400)
@@ -220,34 +223,35 @@ async def rate_place_endpoint(request: Request):
     if not place_name:
         return JSONResponse({"status": "error", "message": "Не указано имя объекта"}, status_code=400)
 
-    # Запускаем оценку через ИИ
     loop = asyncio.get_running_loop()
-    res = await loop.run_in_executor(executor, ai_service.rate_attraction, place_name, region)
+    res = await loop.run_in_executor(executor, ai_service.rate_attraction, place_name, region, original_name)
 
-    # Находим объект в evaluated_cache и обновляем его данные
     updated = False
     for item in evaluated_cache:
         if item.get("name", "").strip().lower() == place_name.lower():
             item["personal_rating"] = res.get("personal_rating", 0.0)
             item["global_rating"] = res.get("global_rating", 0.0)
             item["rating_comment"] = res.get("comment", "")
+            if original_name and not item.get("original_name"):
+                item["original_name"] = original_name
+            if region and not item.get("search_region"):
+                item["search_region"] = region
             updated = True
             break
 
-    # Если вдруг объекта не было в кэше, добавляем его
     if not updated:
         evaluated_cache.append({
             "id": len(evaluated_cache) + 1,
             "name": place_name,
+            "original_name": original_name,
+            "search_region": region,
             "personal_rating": res.get("personal_rating", 0.0),
             "global_rating": res.get("global_rating", 0.0),
             "rating_comment": res.get("comment", ""),
-            "list_name": region or "Хочу посетить"
+            "list_name": "Хочу посетить"
         })
 
-    # Обязательно сохраняем на диск в evaluated_data.json
     save_json_file(EVALUATED_FILE, evaluated_cache)
-
     return JSONResponse({"status": "success", "result": res})
 
 
@@ -287,6 +291,9 @@ async def transfer_to_places(request: Request):
     added_count = 0
     for item in items:
         raw_name = (item.get("name") or "").strip()
+        orig_name = (item.get("original_name") or "").strip()
+        item_url = (item.get("url") or "").strip()
+        search_reg = (item.get("search_region") or "").strip()
         raw_list = (item.get("list_name") or "Хочу посетить").strip()
         if not raw_name:
             continue
@@ -296,6 +303,9 @@ async def transfer_to_places(request: Request):
             places_cache.append({
                 "id": len(places_cache) + 1,
                 "name": raw_name,
+                "original_name": orig_name,
+                "url": item_url,
+                "search_region": search_reg,
                 "rating": item.get("rating", "-"),
                 "rating_comment": item.get("rating_comment", ""),
                 "list_name": raw_list,
@@ -309,7 +319,6 @@ async def transfer_to_places(request: Request):
     return JSONResponse({"status": "success", "added_count": added_count, "total_count": len(places_cache)})
 
 
-# --- Эндпоинты Вкладки 3: Импорт в карты ---
 @app.get("/api/places")
 def get_places(reload: bool = False):
     global places_cache
@@ -324,16 +333,13 @@ def _sync_process(item_id: int):
     if not target:
         return
 
-    name = target.get("name")
-    list_name = target.get("list_name", "Хочу посетить")
-
     def update_step(step_name: str):
         if automator.is_cancelled:
             return
         target["status"] = step_name
         target["error"] = ""
 
-    success, message = automator.process_item(name, list_name, status_cb=update_step)
+    success, message = automator.process_item(target, status_cb=update_step)
 
     if success:
         target["status"] = "Готово"

@@ -107,7 +107,22 @@ class MapsAutomator:
             pass
         return ""
 
-    def process_item(self, place_name: str, list_name: str, status_cb=None) -> tuple[bool, str]:
+    def process_item(self, place_data, status_cb=None) -> tuple[bool, str]:
+        """
+        Принимает либо словарь объекта (содержащий name, original_name, search_region, list_name),
+        либо по старинке строку place_name (для обратной совместимости).
+        """
+        if isinstance(place_data, dict):
+            place_name = place_data.get("name", "")
+            original_name = place_data.get("original_name", "")
+            search_region = place_data.get("search_region", "")
+            list_name = place_data.get("list_name", "Хочу посетить")
+        else:
+            place_name = str(place_data)
+            original_name = ""
+            search_region = ""
+            list_name = "Хочу посетить"
+
         def report(step_text: str):
             if status_cb:
                 status_cb(step_text)
@@ -122,9 +137,18 @@ class MapsAutomator:
 
             page = self.page
 
-            # 1. Поиск
-            report("1/7: Поиск на карте...")
-            encoded = urllib.parse.quote(place_name)
+            # 1. Формируем поисковый запрос (приоритет у оригинального названия + региона)
+            query_parts = []
+            if original_name:
+                query_parts.append(original_name)
+            query_parts.append(place_name)
+            if search_region:
+                query_parts.append(search_region)
+            
+            full_query = " ".join(query_parts)
+
+            report(f"1/7: Поиск на карте: '{full_query}'...")
+            encoded = urllib.parse.quote(full_query)
             page.goto(f"https://www.google.com/maps/search/{encoded}?hl=ru", wait_until="commit", timeout=30000)
             
             if self._wait_cancelled(3000):
@@ -166,7 +190,7 @@ class MapsAutomator:
             context_texts = card_panel.locator("h2, span.fontBodyMedium").all_inner_texts()
             card_context = " | ".join([t.strip() for t in context_texts[:5] if t.strip()])
 
-            # 4. Валидация ИИ
+            # 4. Валидация ИИ (проверяем по основному имени)
             is_match, reason = ai_service.verify_place_match(place_name, title, card_context, status_cb=report)
             if not is_match:
                 return False, f"ИИ отклонил: {reason}"
