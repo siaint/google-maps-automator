@@ -12,8 +12,8 @@ from config import PLACES_FILE
 # Папка для сохранения сессии и кук Trip.com
 TRIP_PROFILE_DIR = Path(__file__).resolve().parent.parent / "trip_profile"
 
-def scrape_trip_attractions(region_query: str, list_name: str = "Хочу посетить", limit: int = 10) -> list:
-    print(f"=== Поиск чистых достопримечательностей для '{region_query}' (лимит: {limit}) ===")
+def scrape_trip_attractions(region_query: str, list_name: str = "Хочу посетить", limit: int = 300) -> list:
+    print(f"=== Поиск всех объектов (включая окрестности) для '{region_query}' (лимит: {limit}) ===")
     
     results = []
     
@@ -54,7 +54,7 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
             except Exception:
                 pass
 
-            # 2. Собираем ссылки из блока Destinations и исключаем мусор
+            # 2. Собираем ссылки из блока Destinations
             destinations = []
             seen_hrefs = set()
 
@@ -85,7 +85,7 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
             if not destinations:
                 raise Exception(f"Не удалось найти регионы в блоке Destinations для '{region_query}'.")
 
-            # Умный выбор: если есть точное совпадение по имени — берем автоматически без меню
+            # Умный выбор по точному совпадению
             selected_dest = None
             query_lower = region_query.strip().lower()
             
@@ -121,15 +121,21 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
 
             print(f"Переход на целевой URL: {target_attractions_url}")
             page.goto(target_attractions_url, wait_until="domcontentloaded", timeout=30000)
+            print("Ожидание прорисовки списка достопримечательностей...")
             page.wait_for_timeout(6000)
 
-            # 4. Накопительный скролл с точным извлечением из карточек PoiCell
+            # 4. Плавный и терпеливый скролл для полной догрузки всех окрестностей
             collected_names = []
             seen_names = set()
-            max_scrolls = 400
-            scroll_pause = 2500
+            max_scrolls = 600      # Больше шагов для глубокой ленты
+            scroll_pause = 3000    # Увеличенная пауза для ответа сети и рендеринга
             stuck_count = 0
             
+            try:
+                page.locator('#POI_LIST_BOX').hover(timeout=3000)
+            except Exception:
+                pass
+
             for scroll_step in range(max_scrolls):
                 poi_cards = page.locator('div.PoiCell_outerV2_pc__ZOyTY').all()
                 if not poi_cards:
@@ -155,24 +161,28 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                     break
 
                 prev_height = page.evaluate("document.body.scrollHeight")
-                page.mouse.wheel(0, 2500)
+                
+                # Имитируем ровную, плавную прокрутку колесом мыши (как вручную)
+                page.mouse.wheel(0, 1500)
                 page.wait_for_timeout(scroll_pause)
+                
                 new_height = page.evaluate("document.body.scrollHeight")
                 
                 if new_height == prev_height:
                     stuck_count += 1
-                    if stuck_count >= 8:
+                    if stuck_count >= 20:  # Даем 20 терпеливых попыток на догрузку самых дальних окрестностей
                         print("Достигнут абсолютный предел списка на стороне сайта.")
                         break
                     else:
-                        page.mouse.wheel(0, -1000)
+                        # Плавная встряска, чтобы разбудить ленивую подгрузку (lazy load)
+                        page.mouse.wheel(0, -500)
                         page.wait_for_timeout(1500)
-                        page.mouse.wheel(0, 3000)
-                        page.wait_for_timeout(3000)
+                        page.mouse.wheel(0, 2500)
+                        page.wait_for_timeout(3500)
                 else:
                     stuck_count = 0
 
-                if scroll_step % 20 == 0:
+                if scroll_step % 15 == 0:
                     print(f"Собрано объектов на текущий момент: {len(collected_names)}...")
 
             final_names = collected_names[:limit]
@@ -195,7 +205,7 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
     if results:
         with open(PLACES_FILE, "w", encoding="utf-8") as f:
             json.dump(results, f, ensure_ascii=False, indent=2)
-        print(f"Успешно сохранено {len(results)} чистых достопримечательностей в {PLACES_FILE}")
+        print(f"Успешно сохранено {len(results)} объектов в {PLACES_FILE}")
     else:
         print("Не удалось собрать достопримечательности.")
 
@@ -203,7 +213,7 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
 
 if __name__ == "__main__":
     region = input("Введите регион на английском (например, Hohhot, Kazan, Paris): ").strip()
-    limit_count = int(input("Сколько объектов собрать (по умолчанию 10): ") or "10")
+    limit_count = int(input("Сколько объектов собрать (по умолчанию 300): ") or "300")
     target_list = input("В какой список Google Maps сохранять (по умолчанию 'Хочу посетить'): ").strip() or "Хочу посетить"
     
     scrape_trip_attractions(region, list_name=target_list, limit=limit_count)
