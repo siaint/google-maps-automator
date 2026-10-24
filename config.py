@@ -13,7 +13,7 @@ SCRAPED_FILE = BASE_DIR / "scraped_data.json"          # Вкладка 1: Ск�
 DB_FILE = BASE_DIR / "travel_master.db"                # База данных SQLite для оценки и архива
 
 GUIDE_PROMPT_FILE = BASE_DIR / "travel_guide_prompt.md"
-RATING_PROMPT_FILE = BASE_DIR / "travel_rating_prompt.md"
+AUDIT_PROMPT_FILE = BASE_DIR / "audit_prompt.md"
 SCREENSHOTS_DIR = BASE_DIR / "debug_screenshots"
 SCREENSHOTS_DIR.mkdir(exist_ok=True)
 

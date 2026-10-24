@@ -1,3 +1,4 @@
+import difflib
 import logging
 import re
 import sys
@@ -173,8 +174,17 @@ class MapsAutomator:
             context_texts = card_panel.locator("h2, span.fontBodyMedium").all_inner_texts()
             card_context = " | ".join([t.strip() for t in context_texts[:5] if t.strip()])
 
-            # 4. Валидация ИИ (проверяем по основному имени и контексту карт)
-            is_match, reason = ai_service.verify_place_match(place_name, title, card_context, status_cb=report)
+            # 4. Валидация: строгая эвристика SequenceMatcher (>= 95%) перед обращением к ИИ
+            similarity_ru = difflib.SequenceMatcher(None, place_name.lower(), title.lower()).ratio()
+            similarity_orig = difflib.SequenceMatcher(None, original_name.lower(), title.lower()).ratio() if original_name else 0.0
+
+            if similarity_ru >= 0.95 or similarity_orig >= 0.95:
+                best_match = max(similarity_ru, similarity_orig)
+                report(f"4/7: Точное совпадение заголовка ({best_match:.0%}), пропуск ИИ-валидатора...")
+                is_match, reason = True, "Прямое совпадение заголовка"
+            else:
+                is_match, reason = ai_service.verify_place_match(place_name, title, card_context, status_cb=report)
+
             if not is_match:
                 return False, f"ИИ отклонил: {reason}"
 
@@ -243,7 +253,7 @@ class MapsAutomator:
                     if self._wait_cancelled(1000):
                         return False, "Прервано пользователем"
 
-            # Сначала проверяем, есть ли уже заполненное поле textarea с текстом (существующая заметка)
+            # Проверяем, есть ли уже видимое поле с текстом
             existing_textarea = card_panel.locator('textarea').first
             if existing_textarea.is_visible(timeout=1500):
                 existing_text = existing_textarea.input_value().strip()
@@ -251,7 +261,7 @@ class MapsAutomator:
                     page.keyboard.press("Escape")
                     return False, f"Пропущено: у объекта уже есть ненужная к перезаписи заметка ({len(existing_text)} зн.)"
 
-            # Ищем кнопку добавления заметки, если поле еще не открыто
+            # Открываем поле добавления заметки, если не открыто
             note_btn = card_panel.locator(
                 'button:has-text("Добавить заметку"), '
                 'button[aria-label*="заметк" i], '
@@ -280,7 +290,6 @@ class MapsAutomator:
                 page.screenshot(path="debug_maps_card.png", full_page=False)
                 return False, "Не удалось открыть поле заметки на карточке"
 
-            # Двойная проверка содержимого текстового поля на случай, если там уже был текст
             current_textarea_text = card_note_area.input_value().strip()
             if current_textarea_text:
                 page.keyboard.press("Escape")

@@ -72,6 +72,22 @@
         .rating-low { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
         .rating-none { color: #6b7280; font-weight: normal; }
 
+        /* Бейджи регионов и списков */
+        .region-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 2px 7px; border-radius: 4px; margin-top: 4px; }
+        .region-tag.single { background: rgba(255, 255, 255, 0.06); color: #9ca3af; border: 1px solid rgba(255, 255, 255, 0.1); }
+        .region-tag.duplicate { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); font-weight: 600; }
+        .imported-list-tag { display: inline-flex; align-items: center; gap: 4px; background: rgba(59, 130, 246, 0.15); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.35); font-size: 11px; padding: 2px 7px; border-radius: 4px; margin-top: 4px; font-weight: 500; }
+
+        .target-box { background: #1c1f24; border: 1px solid #2d3748; border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #a0aec0; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .target-box strong { color: #63b3ed; }
+
+        /* Стили кнопок-карандашей */
+        .btn-icon-edit { background: transparent; border: none; cursor: pointer; padding: 2px 5px; font-size: 13px; border-radius: 4px; transition: background 0.2s; opacity: 0.7; }
+        .btn-icon-edit:hover { background: rgba(255,255,255,0.1); opacity: 1.0; }
+        .edit-input-field { background: #141517; border: 1px solid #2d88ff; border-radius: 4px; color: #fff; font-size: 13px; padding: 6px 8px; box-sizing: border-box; }
+        .btn-micro-save { background: #22c55e; color: #052e16; border: none; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; }
+        .btn-micro-cancel { background: #4b5563; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+
         .modal-overlay {
             display: none;
             position: fixed;
@@ -171,19 +187,17 @@
     <div id="evaluateTab" class="tab-content">
         <div class="actions">
             <button id="btnBlitzRate" class="btn-ai" onclick="runBlitzRate()" style="background: #f59e0b; color: #000; font-weight: bold;">⚡ Блиц-оценка (экран)</button>
-            <button id="btnRateAll" class="btn-ai" onclick="rateAllItems()">⚡ Оценить всё через ИИ (подробно)</button>
+            <button id="btnRateAll" class="btn-ai" onclick="rateAllItems()">⚡ Оценить всё через ИИ (экспресс)</button>
             <button style="background: #3a3b3c;" onclick="loadEvaluatedData()">↻ Обновить список</button>
             <button class="btn-clear" onclick="openClearModal('evaluated')">🗑 Очистить экран</button>
-            <button id="btnTransferToPlaces" onclick="transferSelectedToPlaces()" style="background: #22c55e; color: #052e16; font-weight: bold;">💾 Перенести выбранные в импорт карт</button>
         </div>
 
         <div style="display: flex; gap: 20px; align-items: flex-start;">
-            <!-- Левая колонка: Таблица списка -->
+            <!-- Левая колонка: Таблица списка без чекбоксов -->
             <div style="flex: 1; overflow-x: auto;">
                 <table>
                     <thead>
                         <tr>
-                            <th class="checkbox-cell"><input type="checkbox" id="selectAllEvaluated" checked onchange="toggleAllCheckboxes('evaluated', this.checked)"></th>
                             <th style="width: 40px;">#</th>
                             <th>Название достопримечательности</th>
                             <th style="width: 100px;">Рейтинг</th>
@@ -198,23 +212,56 @@
             <!-- Правая панель: Предпросмотр -->
             <div id="previewPanel" style="width: 500px; background: #242526; border-radius: 8px; padding: 20px; border: 1px solid #393a3b; position: sticky; top: 20px; display: none; box-sizing: border-box;">
                 <h3 id="panelTitle" style="margin-top: 0; color: #fff; font-size: 16px; word-break: break-word;">Выберите объект</h3>
+                <div id="panelRegionsBadge" style="margin-bottom: 6px;"></div>
                 <div id="panelImportBadge" style="margin-bottom: 10px;"></div>
                 <div id="panelImageContainer" style="margin-bottom: 12px; text-align: center; background: #18191a; border-radius: 6px; padding: 4px; min-height: 100px; display: flex; align-items: center; justify-content: center;"></div>
                 <div id="panelLinks" style="margin-bottom: 12px; font-size: 13px;"></div>
                 <div id="panelRating" style="margin-bottom: 12px; font-size: 14px;"></div>
                 
                 <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
-                    <button class="btn-single btn-ai" onclick="rateSelectedPanelItem(false)">⚡ Оценить / Обновить</button>
-                    <button class="btn-single" style="background: #3b82f6;" onclick="rateSelectedPanelItem(true)">📖 Полное описание</button>
+                    <button class="btn-single btn-ai" onclick="rateSelectedPanelItem(false)" title="Быстрый вердикт за минимум токенов">⚡ Экспресс-аудит (дешево)</button>
+                    <button class="btn-single" style="background: #3b82f6;" onclick="rateSelectedPanelItem(true)" title="Сгенерировать чистовой гайд для карт">📖 Полное описание</button>
                     <button class="btn-single" style="background: #4b5563; color: #fff;" onclick="rejectSelectedPanelItem()">❌ Не интересно</button>
                 </div>
 
-                <div style="font-size: 13px; color: #b0b3b8; margin-bottom: 6px; font-weight: 600;">Сгенерированный текст гайда:</div>
-                <div id="panelTextContent" style="background: #1e1e1e; padding: 12px; border-radius: 6px; font-size: 13px; color: #d4d4d4; height: 350px; overflow-y: auto; white-space: pre-wrap; line-height: 1.4; border: 1px solid #393a3b;">
-                    Нажмите «Оценить», чтобы сгенерировать описание по скиллу.
+                <!-- Блок текста гайда с кнопкой-карандашом -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 13px; color: #b0b3b8; font-weight: 600;">Текст гайда:</span>
+                    <button id="btnEditComment" class="btn-icon-edit" onclick="toggleEditComment(true)" title="Редактировать описание">✏️ Изменить</button>
+                </div>
+                
+                <div id="panelTextViewContainer">
+                    <div id="panelTextContent" style="background: #1e1e1e; padding: 12px; border-radius: 6px; font-size: 13px; color: #d4d4d4; height: 320px; overflow-y: auto; white-space: pre-wrap; line-height: 1.4; border: 1px solid #393a3b;">
+                        Нажмите «Экспресс-аудит», чтобы оценить перспективность объекта.
+                    </div>
                 </div>
 
+                <div id="panelTextEditContainer" style="display: none;">
+                    <textarea id="panelTextEditArea" class="edit-input-field" style="width: 100%; height: 320px; resize: vertical; font-family: inherit; line-height: 1.4;"></textarea>
+                    <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px;">
+                        <button class="btn-micro-cancel" onclick="toggleEditComment(false)">Отмена</button>
+                        <button class="btn-micro-save" onclick="saveCommentEdit()">✓ Сохранить текст</button>
+                    </div>
+                </div>
+
+                <!-- Блок назначения списка с кнопкой-карандашом -->
                 <div style="margin-top: 15px; border-top: 1px solid #393a3b; padding-top: 15px;">
+                    <div class="target-box">
+                        <div id="targetDisplayRow" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                            <span>Куда пойдет при импорте:</span>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <strong id="panelTargetListName">Хочу посетить</strong>
+                                <button class="btn-icon-edit" onclick="toggleEditList(true)" title="Сменить список">✏️</button>
+                            </div>
+                        </div>
+                        <div id="targetEditRow" style="display: none; width: 100%;">
+                            <div style="display: flex; gap: 6px; width: 100%;">
+                                <input type="text" id="panelTargetListInput" class="edit-input-field" style="flex: 1;" placeholder="Имя списка Google Maps">
+                                <button class="btn-micro-save" onclick="saveListEdit()">✓</button>
+                                <button class="btn-micro-cancel" onclick="toggleEditList(false)">✕</button>
+                            </div>
+                        </div>
+                    </div>
                     <button class="btn-single" style="background: #22c55e; color: #052e16; width: 100%; font-weight: bold; padding: 10px;" onclick="transferCurrentPanelItem()">💾 Перенести этот объект в Карты</button>
                 </div>
             </div>
@@ -267,6 +314,7 @@
     let evaluatedItems = [];
     let placesItems = [];
     let selectedPanelItemId = null;
+    let currentPanelItemObj = null;
 
     function showModal({ title, body, confirmText = 'Удалить', onConfirm }) {
         const modal = document.getElementById('confirmModal');
@@ -389,7 +437,7 @@
         tbody.innerHTML = '';
 
         if (items.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 30px; color: #b0b3b8;">База оценки пуста. Перенесите объекты с вкладки №1!</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 30px; color: #b0b3b8;">База оценки пуста. Перенесите объекты с вкладки №1!</td></tr>';
             document.getElementById('previewPanel').style.display = 'none';
             return;
         }
@@ -401,7 +449,7 @@
                 tr.classList.add('selected-row');
             }
             tr.onclick = (e) => {
-                if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'A') return;
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'A' || e.target.tagName === 'TEXTAREA') return;
                 selectEvaluatedItem(item.id);
             };
 
@@ -420,19 +468,37 @@
                 nameHtml += `<div style="font-size: 12px; color: #9ca3af; margin-top: 2px;">${item.original_name}</div>`;
             }
 
+            let tagsHtml = '';
+            if (item.search_region && item.search_region.trim() !== '') {
+                const regions = item.search_region.split(',').map(r => r.trim()).filter(Boolean);
+                if (regions.length > 1) {
+                    tagsHtml += `<span class="region-tag duplicate" title="Объект встретился в поисках: ${item.search_region}">🔁 Повтор ×${regions.length}: ${item.search_region}</span> `;
+                } else {
+                    tagsHtml += `<span class="region-tag single" title="Регион поиска">📍 ${item.search_region}</span> `;
+                }
+            }
+
+            if (item.imported_list && item.imported_list.trim() !== '') {
+                const lists = item.imported_list.split(',').map(l => l.trim()).filter(Boolean);
+                const titleText = lists.length > 1 ? `В списках (${lists.length}): ${item.imported_list}` : `В списках: ${item.imported_list}`;
+                tagsHtml += `<span class="imported-list-tag" title="Уже добавлен в эти списки Google Maps">📌 ${titleText}</span>`;
+            }
+
+            if (tagsHtml) {
+                nameHtml += `<div style="margin-top: 2px;">${tagsHtml}</div>`;
+            }
+
             let statusBadges = '';
             if (item.rating_comment && item.rating_comment.trim() !== '') {
                 if (item.rating_comment.startsWith('Отклонено:')) {
                     statusBadges += `<span style="display: inline-block; background: rgba(107, 114, 128, 0.15); color: #9ca3af; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;">❌ Не интересно</span>`;
                 } else if (item.rating_comment.startsWith('Блиц-оценка:')) {
                     statusBadges += `<span style="display: inline-block; background: rgba(245, 158, 11, 0.15); color: #f59e0b; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;">⚡ Пройдена блиц-оценка</span>`;
+                } else if (item.rating_comment.includes('Суть:') && item.rating_comment.includes('Вердикт:')) {
+                    statusBadges += `<span style="display: inline-block; background: rgba(139, 92, 246, 0.15); color: #a78bfa; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;">⚡ Экспресс-аудит</span>`;
                 } else {
                     statusBadges += `<span style="display: inline-block; background: rgba(52, 211, 153, 0.15); color: #34d399; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;">📖 Есть подробный гайд</span>`;
                 }
-            }
-
-            if (item.imported_list) {
-                statusBadges += `<span style="display: inline-block; background: rgba(45, 136, 255, 0.15); color: #60a5fa; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-top: 3px;">📌 В картах: ${item.imported_list}</span>`;
             }
 
             if (statusBadges) {
@@ -440,9 +506,6 @@
             }
 
             tr.innerHTML = `
-                <td class="checkbox-cell">
-                    <input type="checkbox" class="evaluated-item-check" data-id="${item.id}" checked>
-                </td>
                 <td>${idx + 1}</td>
                 <td>${nameHtml}</td>
                 <td>${ratingBadge}</td>
@@ -467,6 +530,9 @@
 
     async function selectEvaluatedItem(id) {
         selectedPanelItemId = id;
+        toggleEditComment(false);
+        toggleEditList(false);
+
         document.querySelectorAll('#evaluatedTableBody tr').forEach(tr => tr.classList.remove('selected-row'));
         const activeRow = document.getElementById(`eval-row-${id}`);
         if (activeRow) activeRow.classList.add('selected-row');
@@ -474,18 +540,34 @@
         const res = await fetch(`/api/evaluated/${id}`);
         if (!res.ok) return;
         const item = await res.json();
+        currentPanelItemObj = item;
 
         const panel = document.getElementById('previewPanel');
         panel.style.display = 'block';
         
         document.getElementById('panelTitle').innerText = item.name + (item.original_name ? ` (${item.original_name})` : '');
         
+        const regionsContainer = document.getElementById('panelRegionsBadge');
+        if (item.search_region && item.search_region.trim() !== '') {
+            const regions = item.search_region.split(',').map(r => r.trim()).filter(Boolean);
+            if (regions.length > 1) {
+                regionsContainer.innerHTML = `<div class="region-tag duplicate" style="display:inline-block; margin-bottom: 4px;">🔁 Встретился в ${regions.length} поисках: <strong>${item.search_region}</strong></div>`;
+            } else {
+                regionsContainer.innerHTML = `<div class="region-tag single" style="display:inline-block; margin-bottom: 4px;">📍 Регион поиска: <strong>${item.search_region}</strong></div>`;
+            }
+        } else {
+            regionsContainer.innerHTML = '';
+        }
+
         const badgeContainer = document.getElementById('panelImportBadge');
-        if (item.imported_list) {
-            badgeContainer.innerHTML = `<div style="background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.3); color: #34d399; padding: 6px 10px; border-radius: 4px; font-size: 12px;">📌 Ранее добавлено на карты в список: <strong>${item.imported_list}</strong></div>`;
+        if (item.imported_list && item.imported_list.trim() !== '') {
+            badgeContainer.innerHTML = `<div style="background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.3); color: #93c5fd; padding: 6px 10px; border-radius: 4px; font-size: 12px;">📌 Добавлен в списки: <strong>${item.imported_list}</strong></div>`;
         } else {
             badgeContainer.innerHTML = '';
         }
+
+        document.getElementById('panelTargetListName').innerText = item.list_name || 'Хочу посетить';
+        document.getElementById('panelTargetListInput').value = item.list_name || 'Хочу посетить';
 
         const imgContainer = document.getElementById('panelImageContainer');
         if (item.image) {
@@ -504,24 +586,92 @@
             ratingHtml = `<strong style="color: ${color};">Рейтинг: ${ratingVal.toFixed(1)}</strong>`;
         }
         document.getElementById('panelRating').innerHTML = ratingHtml;
-        document.getElementById('panelTextContent').innerText = item.rating_comment || 'Описание пока не сгенерировано. Нажмите «Оценить» или «Полное описание».';
+        
+        const commentText = item.rating_comment || '';
+        document.getElementById('panelTextContent').innerText = commentText || 'Нажмите «Экспресс-аудит», чтобы оценить перспективность объекта.';
+        document.getElementById('panelTextEditArea').value = commentText;
+    }
+
+    /* Логика инлайн-редактирования описания */
+    function toggleEditComment(showEdit) {
+        document.getElementById('panelTextViewContainer').style.display = showEdit ? 'none' : 'block';
+        document.getElementById('panelTextEditContainer').style.display = showEdit ? 'block' : 'none';
+        document.getElementById('btnEditComment').style.display = showEdit ? 'none' : 'inline-block';
+        if (showEdit) {
+            const area = document.getElementById('panelTextEditArea');
+            area.value = currentPanelItemObj ? (currentPanelItemObj.rating_comment || '') : '';
+            area.focus();
+        }
+    }
+
+    async function saveCommentEdit() {
+        if (!selectedPanelItemId) return;
+        const newText = document.getElementById('panelTextEditArea').value;
+        
+        const res = await fetch(`/api/evaluated/${selectedPanelItemId}/update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rating_comment: newText })
+        });
+        
+        if (res.ok) {
+            if (currentPanelItemObj) currentPanelItemObj.rating_comment = newText;
+            document.getElementById('panelTextContent').innerText = newText;
+            toggleEditComment(false);
+            loadEvaluatedData();
+        } else {
+            alert('Ошибка при сохранении текста');
+        }
+    }
+
+    /* Логика инлайн-редактирования целевого списка */
+    function toggleEditList(showEdit) {
+        document.getElementById('targetDisplayRow').style.display = showEdit ? 'none' : 'flex';
+        document.getElementById('targetEditRow').style.display = showEdit ? 'block' : 'none';
+        if (showEdit) {
+            const inp = document.getElementById('panelTargetListInput');
+            inp.value = currentPanelItemObj ? (currentPanelItemObj.list_name || 'Хочу посетить') : '';
+            inp.focus();
+        }
+    }
+
+    async function saveListEdit() {
+        if (!selectedPanelItemId) return;
+        const newList = document.getElementById('panelTargetListInput').value.trim() || 'Хочу посетить';
+        
+        const res = await fetch(`/api/evaluated/${selectedPanelItemId}/update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ list_name: newList })
+        });
+        
+        if (res.ok) {
+            if (currentPanelItemObj) currentPanelItemObj.list_name = newList;
+            document.getElementById('panelTargetListName').innerText = newList;
+            toggleEditList(false);
+            loadEvaluatedData();
+        } else {
+            alert('Ошибка при сохранении списка');
+        }
     }
 
     async function rateSelectedPanelItem(fullDescription = false) {
         if (!selectedPanelItemId) return;
+        toggleEditComment(false);
         
         const resMeta = await fetch(`/api/evaluated/${selectedPanelItemId}`);
         if (!resMeta.ok) return;
         const item = await resMeta.json();
 
         const textDiv = document.getElementById('panelTextContent');
-        textDiv.innerText = '🤖 ИИ анализирует объект по скиллу...';
+        textDiv.innerText = fullDescription ? '🤖 Генерация полного описания через Gemini 3.8...' : '⚡ Экспресс-аудит объекта (дешево)...';
 
         try {
             const res = await fetch('/api/ai/rate_place', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
+                    id: item.id,
                     name: item.name, 
                     original_name: item.original_name || '', 
                     region: item.search_region || '',
@@ -593,7 +743,7 @@
     async function rateAllItems() {
         if (isBatchRating) {
             isBatchRating = false;
-            document.getElementById('btnRateAll').innerText = '⚡ Оценить всё через ИИ';
+            document.getElementById('btnRateAll').innerText = '⚡ Оценить всё через ИИ (экспресс)';
             return;
         }
 
@@ -609,11 +759,11 @@
             selectedPanelItemId = item.id;
             selectEvaluatedItem(item.id);
             await rateSelectedPanelItem(false);
-            await new Promise(r => setTimeout(r, 800));
+            await new Promise(r => setTimeout(r, 600));
         }
 
         isBatchRating = false;
-        btn.innerText = '⚡ Оценить всё через ИИ';
+        btn.innerText = '⚡ Оценить всё через ИИ (экспресс)';
         btn.className = 'btn-ai';
     }
 
@@ -638,33 +788,6 @@
             alert(`✅ Объект «${item.name}» успешно передан в очередь импорта карт!`);
             loadEvaluatedData();
             loadPlacesData(true);
-        }
-    }
-
-    async function transferSelectedToPlaces() {
-        const checkboxes = document.querySelectorAll('.evaluated-item-check:checked');
-        const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.getAttribute('data-id')));
-        
-        const selectedItems = [];
-        for (let id of selectedIds) {
-            const res = await fetch(`/api/evaluated/${id}`);
-            if (res.ok) selectedItems.push(await res.json());
-        }
-
-        if (selectedItems.length === 0) {
-            showModal({ title: "Внимание", body: "Не выбрано ни одного объекта для импорта!", confirmText: "Понятно", onConfirm: () => {} });
-            return;
-        }
-
-        const res = await fetch('/api/evaluated/transfer_to_places', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(selectedItems)
-        });
-        const data = await res.json();
-        if (res.ok) {
-            alert(`✅ Успешно передано в очередь импорта карт: ${data.added_count} объектов. Перейдите на вкладку №3.`);
-            loadEvaluatedData();
         }
     }
 
@@ -727,7 +850,7 @@
 
     function toggleAllCheckboxes(type, checked) {
         document.querySelectorAll(`.${type}-item-check`).forEach(cb => cb.checked = checked);
-        const master = document.getElementById(type === 'scraper' ? 'selectAllScraper' : 'selectAllEvaluated');
+        const master = document.getElementById('selectAllScraper');
         if (master) master.checked = checked;
     }
 

@@ -21,10 +21,10 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 trip_cancelled = False
 
-# --- Инициализация SQLite с автомиграцией колонки archived ---
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
+    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS evaluated_items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,14 +39,20 @@ def init_db():
             rating_comment TEXT DEFAULT '',
             list_name TEXT DEFAULT 'Хочу посетить',
             imported_list TEXT DEFAULT '',
-            archived INTEGER DEFAULT 0,
-            UNIQUE(name, search_region)
+            archived INTEGER DEFAULT 0
         )
     ''')
+
     cursor.execute("PRAGMA table_info(evaluated_items)")
     columns = [col[1] for col in cursor.fetchall()]
     if "archived" not in columns:
         cursor.execute("ALTER TABLE evaluated_items ADD COLUMN archived INTEGER DEFAULT 0")
+
+    cursor.execute('''
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_evaluated_orig_name 
+        ON evaluated_items(original_name) 
+        WHERE original_name IS NOT NULL AND TRIM(original_name) != ''
+    ''')
         
     conn.commit()
     conn.close()
@@ -209,11 +215,17 @@ async def transfer_to_evaluated(request: Request):
         search_reg = (item.get("search_region") or "").strip()
         raw_list = (item.get("list_name") or "Хочу посетить").strip()
         
-        if not raw_name:
+        if not raw_name and not orig_name:
             continue
         
-        cursor.execute("SELECT id FROM evaluated_items WHERE LOWER(name) = LOWER(?) AND LOWER(search_region) = LOWER(?)", (raw_name, search_reg))
-        existing = cursor.fetchone()
+        existing = None
+        if orig_name:
+            cursor.execute("SELECT id, search_region FROM evaluated_items WHERE LOWER(TRIM(original_name)) = LOWER(?)", (orig_name,))
+            existing = cursor.fetchone()
+        
+        if not existing and raw_name:
+            cursor.execute("SELECT id, search_region FROM evaluated_items WHERE LOWER(TRIM(name)) = LOWER(?)", (raw_name,))
+            existing = cursor.fetchone()
         
         if not existing:
             cursor.execute('''
@@ -222,14 +234,20 @@ async def transfer_to_evaluated(request: Request):
             ''', (raw_name, orig_name, search_reg, item_url, item_img, raw_list))
             added_count += 1
         else:
+            existing_regions = [r.strip() for r in (existing["search_region"] or "").split(",") if r.strip()]
+            if search_reg and search_reg not in existing_regions:
+                existing_regions.append(search_reg)
+            merged_regions = ", ".join(existing_regions)
+
             cursor.execute('''
                 UPDATE evaluated_items 
                 SET url = COALESCE(NULLIF(?, ''), url), 
                     image = COALESCE(NULLIF(?, ''), image),
                     original_name = COALESCE(NULLIF(?, ''), original_name),
+                    search_region = ?,
                     archived = 0
                 WHERE id = ?
-            ''', (item_url, item_img, orig_name, existing["id"]))
+            ''', (item_url, item_img, orig_name, merged_regions, existing["id"]))
             duplicate_count += 1
 
     conn.commit()
@@ -273,11 +291,42 @@ def get_evaluated_item(item_id: int):
     return JSONResponse(dict(row))
 
 
+@app.post("/api/evaluated/{item_id}/update")
+async def update_evaluated_item(item_id: int, request: Request):
+    try:
+        body = await request.json()
+        list_name = body.get("list_name")
+        rating_comment = body.get("rating_comment")
+    except Exception:
+        return JSONResponse({"status": "error", "message": "Некорректный JSON"}, status_code=400)
+
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+
+    updates = []
+    params = []
+    if list_name is not None:
+        updates.append("list_name = ?")
+        params.append(list_name.strip())
+    if rating_comment is not None:
+        updates.append("rating_comment = ?")
+        params.append(rating_comment.strip())
+
+    if updates:
+        params.append(item_id)
+        cursor.execute(f"UPDATE evaluated_items SET {', '.join(updates)} WHERE id = ?", params)
+        conn.commit()
+
+    conn.close()
+    return JSONResponse({"status": "success", "id": item_id})
+
+
 @app.post("/api/ai/rate_place")
 async def rate_place_endpoint(request: Request):
     import asyncio
     try:
         body = await request.json()
+        item_id = body.get("id")
         place_name = body.get("name", "").strip()
         original_name = body.get("original_name", "").strip()
         region = body.get("region", "").strip()
@@ -285,19 +334,29 @@ async def rate_place_endpoint(request: Request):
     except Exception:
         return JSONResponse({"status": "error", "message": "Некорректный JSON"}, status_code=400)
 
-    if not place_name:
+    if not place_name and not original_name:
         return JSONResponse({"status": "error", "message": "Не указано имя объекта"}, status_code=400)
 
     loop = asyncio.get_running_loop()
-    res = await loop.run_in_executor(executor, ai_service.rate_attraction, place_name, region, original_name, full_desc)
+    if full_desc:
+        res = await loop.run_in_executor(executor, ai_service.rate_attraction, place_name, region, original_name, True)
+    else:
+        res = await loop.run_in_executor(executor, ai_service.quick_audit_attraction, place_name, region, original_name)
 
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute('''
-        UPDATE evaluated_items 
-        SET rating = ?, personal_rating = ?, global_rating = ?, rating_comment = ?
-        WHERE LOWER(name) = LOWER(?)
-    ''', (str(res.get("personal_rating", 0.0)), res.get("personal_rating", 0.0), res.get("global_rating", 0.0), res.get("comment", ""), place_name))
+    if item_id:
+        cursor.execute('''
+            UPDATE evaluated_items 
+            SET rating = ?, personal_rating = ?, global_rating = ?, rating_comment = ?
+            WHERE id = ?
+        ''', (str(res.get("personal_rating", 0.0)), res.get("personal_rating", 0.0), res.get("global_rating", 0.0), res.get("comment", ""), item_id))
+    else:
+        cursor.execute('''
+            UPDATE evaluated_items 
+            SET rating = ?, personal_rating = ?, global_rating = ?, rating_comment = ?
+            WHERE LOWER(name) = LOWER(?)
+        ''', (str(res.get("personal_rating", 0.0)), res.get("personal_rating", 0.0), res.get("global_rating", 0.0), res.get("comment", ""), place_name))
     conn.commit()
     conn.close()
 
@@ -342,7 +401,7 @@ async def batch_rate_blitz(request: Request):
             cursor = conn.cursor()
             for res in results:
                 r_name = res.get("name", "").strip()
-                r_score = res.get("rating", 5.0)
+                r_score = res.get("rating", 0.0)
                 r_reason = res.get("reason", "")
                 
                 cursor.execute('''
@@ -385,13 +444,14 @@ async def transfer_to_places(request: Request):
     except Exception:
         return JSONResponse({"status": "error", "message": "Некорректный JSON"}, status_code=400)
 
-    existing_pairs = {
-        (
-            (x.get("name") or "").strip().lower(),
-            (x.get("list_name") or "Хочу посетить").strip().lower()
-        )
-        for x in places_cache
-    }
+    existing_keys = set()
+    for x in places_cache:
+        oname = (x.get("original_name") or "").strip().lower()
+        rname = (x.get("name") or "").strip().lower()
+        if oname:
+            existing_keys.add(oname)
+        if rname:
+            existing_keys.add(rname)
     
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -406,13 +466,21 @@ async def transfer_to_places(request: Request):
         raw_list = (item.get("list_name") or "Хочу посетить").strip()
         guide_text = (item.get("rating_comment") or "").strip()
         
-        if not raw_name:
+        if not raw_name and not orig_name:
             continue
         
-        cursor.execute("UPDATE evaluated_items SET imported_list = ? WHERE LOWER(name) = LOWER(?)", (raw_list, raw_name))
+        # Получаем уже сохраненные списки импорта и аккуратно дописываем новый
+        cursor.execute("SELECT imported_list FROM evaluated_items WHERE id = ?", (item.get("id"),))
+        row = cursor.fetchone()
+        existing_lists = [l.strip() for l in (row[0] or "").split(",") if l.strip()] if row else []
+        if raw_list and raw_list not in existing_lists:
+            existing_lists.append(raw_list)
+        merged_lists = ", ".join(existing_lists)
 
-        pair_key = (raw_name.lower(), raw_list.lower())
-        if pair_key not in existing_pairs:
+        cursor.execute("UPDATE evaluated_items SET imported_list = ? WHERE id = ?", (merged_lists, item.get("id")))
+
+        item_key = orig_name.lower() if orig_name else raw_name.lower()
+        if item_key not in existing_keys:
             places_cache.append({
                 "id": len(places_cache) + 1,
                 "name": raw_name,
@@ -426,7 +494,10 @@ async def transfer_to_places(request: Request):
                 "status": "В очереди",
                 "error": ""
             })
-            existing_pairs.add(pair_key)
+            if orig_name:
+                existing_keys.add(orig_name.lower())
+            if raw_name:
+                existing_keys.add(raw_name.lower())
             added_count += 1
 
     conn.commit()
@@ -511,20 +582,19 @@ def clear_all_places():
     save_json_file(PLACES_FILE, places_cache)
     return JSONResponse({"status": "cleared_completed"})
 
+
 @app.post("/api/evaluated/{item_id}/reject")
 def reject_evaluated_item(item_id: int):
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # Получаем текущий текст комментария/описания
     cursor.execute("SELECT rating_comment FROM evaluated_items WHERE id = ?", (item_id,))
     row = cursor.fetchone()
     
     if row:
         current_comment = (row["rating_comment"] or "").strip()
         
-        # Если статус "Не интересно" еще не проставлен, добавляем его в начало, сохраняя остальной текст
         if not current_comment.startswith("Отклонено: Не интересно"):
             if current_comment and current_comment != "-":
                 new_comment = f"Отклонено: Не интересно\n\n{current_comment}"

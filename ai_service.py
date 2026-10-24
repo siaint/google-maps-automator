@@ -1,17 +1,82 @@
 import json
 import logging
+import re
 import time
 from google import genai
 from google.genai import types
-from config import GEMINI_API_KEY, GUIDE_PROMPT_FILE, RATING_PROMPT_FILE
+from config import GEMINI_API_KEY, GUIDE_PROMPT_FILE, AUDIT_PROMPT_FILE
 
 logger = logging.getLogger("ai_service")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 
+def quick_audit_attraction(place_name: str, region: str = "", original_name: str = "") -> dict:
+    """
+    Экспресс-аудит спорного объекта с максимальной экономией токенов:
+    - Читает промпт на лету из prompts/audit_prompt.md
+    - thinking_budget = 0 (отключение дорогих токенов рассуждений)
+    - temperature = 0.0 (строгий сухой стиль, минимум лишних слов)
+    - max_output_tokens = 180 (физический потолок на 3-4 предложения)
+    """
+    if not AUDIT_PROMPT_FILE.exists():
+        logger.error(f"Файл промпта аудита не найден: {AUDIT_PROMPT_FILE}")
+        audit_instruction = (
+            "Ты — жесткий аудитор туристических объектов Китая. Без воды дай вердикт на 3-4 предложения: "
+            "Личный рейтинг: X.X | Глобальный рейтинг: X.X\n"
+            "Суть: ...\nПлюсы и минусы: ...\nВердикт: ..."
+        )
+    else:
+        with open(AUDIT_PROMPT_FILE, "r", encoding="utf-8") as f:
+            audit_instruction = f.read().strip()
+
+    orig_part = f' (оригинальное название: "{original_name}")' if original_name else ''
+    user_query = f'Объект: "{place_name}"{orig_part}, регион поиска: "{region}". Дай экспресс-аудит.'
+
+    config = types.GenerateContentConfig(
+        system_instruction=audit_instruction,
+        temperature=0.0,
+        max_output_tokens=180,
+    )
+
+    try:
+        resp = client.models.generate_content(
+            model="gemini-3.5-flash-lite",
+            contents=user_query,
+            config=config,
+        )
+        text_resp = resp.text.strip()
+    except Exception as e:
+        logger.error(f"Ошибка экспресс-аудита для '{place_name}': {e}")
+        return {"personal_rating": 0.0, "global_rating": 0.0, "comment": f"Ошибка AI: {e}"}
+
+    personal_rating = 0.0
+    global_rating = 0.0
+
+    m_pr = re.search(r'Личный рейтинг:\s*(\d+\.?\d*)', text_resp)
+    if m_pr:
+        try:
+            personal_rating = float(m_pr.group(1))
+        except:
+            pass
+
+    m_gr = re.search(r'Глобальный рейтинг:\s*(\d+\.?\d*)', text_resp)
+    if m_gr:
+        try:
+            global_rating = float(m_gr.group(1))
+        except:
+            pass
+
+    return {
+        "personal_rating": personal_rating,
+        "global_rating": global_rating,
+        "comment": text_resp
+    }
+
+
 def rate_attraction(place_name: str, region: str = "", original_name: str = "", full_description: bool = False) -> dict:
     """
-    Оценивает объект и генерирует описание по вашему скиллу (включая жесткий отсев <4.0 и полный шаблон до 3800 символов).
+    Генерирует подробное описание по вашему скиллу (включая жесткий отсев <4.0 и полный шаблон до 3800 символов).
+    Использует gemini-3.8-flash как основную модель.
     """
     if not GUIDE_PROMPT_FILE.exists():
         return {"personal_rating": 0.0, "global_rating": 0.0, "comment": f"Ошибка: файл {GUIDE_PROMPT_FILE.name} не найден"}
@@ -27,9 +92,10 @@ def rate_attraction(place_name: str, region: str = "", original_name: str = "", 
         system_instruction=skill_instruction,
         temperature=0.3,
         thinking_config=types.ThinkingConfig(thinking_budget=1024),
+        max_output_tokens=2800,
     )
 
-    models_to_try = ["gemini-3.6-flash", "gemini-3.5-flash-lite"]
+    models_to_try = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"]
     last_err = ""
     text_resp = ""
 
@@ -61,13 +127,11 @@ def rate_attraction(place_name: str, region: str = "", original_name: str = "", 
             "comment": f"Ошибка AI: {last_err}"
         }
 
-    # Извлекаем личный рейтинг из текста для бейджа в таблице (ищем числа в формате X.X или Личный рейтинг)
-    personal_rating = 5.0
-    global_rating = 5.0
+    personal_rating = 0.0
+    global_rating = 0.0
     
     for line in text_resp.split('\n'):
         if "Личный рейтинг" in line or "PERSONAL_RATING" in line:
-            import re
             nums = re.findall(r'\d+\.\d+|\d+', line)
             if nums:
                 try:
@@ -75,7 +139,6 @@ def rate_attraction(place_name: str, region: str = "", original_name: str = "", 
                 except:
                     pass
         elif "Глобальный рейтинг" in line or "GLOBAL_RATING" in line:
-            import re
             nums = re.findall(r'\d+\.\d+|\d+', line)
             if nums:
                 try:
