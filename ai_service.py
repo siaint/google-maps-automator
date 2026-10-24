@@ -29,7 +29,7 @@ def rate_attraction(place_name: str, region: str = "", original_name: str = "", 
         thinking_config=types.ThinkingConfig(thinking_budget=1024),
     )
 
-    models_to_try = ["gemini-3.8-flash", "gemini-3.5-flash-lite"]
+    models_to_try = ["gemini-3.6-flash", "gemini-3.5-flash-lite"]
     last_err = ""
     text_resp = ""
 
@@ -132,3 +132,70 @@ def verify_place_match(query: str, card_title: str, card_context: str, status_cb
                 continue
             return False, f"Ошибка валидации API: {e}"
     return False, "Превышен лимит попыток валидации"
+
+
+def rate_attractions_batch(places: list[dict]) -> list[dict]:
+    """
+    Пакетная блиц-оценка списка объектов в ультракомпактном формате (массив массивов) для экономии токенов.
+    """
+    if not places:
+        return []
+    
+    items_input = []
+    for p in places:
+        items_input.append({
+            "name": p.get("name"),
+            "original_name": p.get("original_name", ""),
+            "region": p.get("search_region", "")
+        })
+
+    prompt = f"""
+Ты — жесткий туристический аудитор автопутешествий. Оцени объекты Китая от 1.0 до 10.0 (10 — мировой феномен, 7.0-8.9 — ключевые природные/исторические доминанты, 6.0-6.9 — стоящее наполнение дня, 4.0-5.9 — слабый проходняк, <4.0 — шлак/ловушка).
+
+Критерии:
++ В плюс: горы/скалы/обрывы, подлинная древность 600+ лет, крепости/стены, масштабные каньоны/пустыни, крупные топ-музеи.
+- В минус: коммерция, агропарки, покатушки, мелкие храмы, городские парки/площади, части других комплексов.
+! Жесткий отсев (<5.0): кемпинги/глэмпинги, отели, турбазы отдыха (Resort/Camp), питомники/зооуголки, плоские поля/степи без рельефа.
+
+Формат: строго JSON-массив массивов без разметки markdown и пояснений:
+[["Имя из списка", 6.5, "краткая суть до 8 слов"]]
+
+Список объектов для оценки:
+{json.dumps(items_input, ensure_ascii=False)}
+"""
+
+    config = types.GenerateContentConfig(
+        temperature=0.1,
+        response_mime_type="application/json"
+    )
+
+    try:
+        resp = client.models.generate_content(
+            model="gemini-3.5-flash-lite",
+            contents=prompt,
+            config=config
+        )
+        
+        raw_text = resp.text.strip()
+        if raw_text.startswith("```json"):
+            raw_text = raw_text[7:]
+        if raw_text.startswith("```"):
+            raw_text = raw_text[3:]
+        if raw_text.endswith("```"):
+            raw_text = raw_text[:-3]
+        
+        raw_data = json.loads(raw_text.strip())
+        
+        structured_results = []
+        for row in raw_data:
+            if isinstance(row, list) and len(row) >= 3:
+                structured_results.append({
+                    "name": row[0],
+                    "rating": row[1],
+                    "reason": row[2]
+                })
+        return structured_results
+
+    except Exception as e:
+        logger.error(f"Ошибка пакетной блиц-оценки: {e}")
+        return []

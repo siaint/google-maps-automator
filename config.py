@@ -7,10 +7,10 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent
 PROFILE_DIR = BASE_DIR / "google_maps_profile"
 
-# Раздельные файлы для каждой вкладки
+# Файлы данных
 PLACES_FILE = BASE_DIR / "places.json"                  # Вкладка 3: Импорт в карты
-SCRAPED_FILE = BASE_DIR / "scraped_data.json"          # Вкладка 1: Скрейпер
-EVALUATED_FILE = BASE_DIR / "evaluated_data.json"      # Вкладка 2: Оценка ИИ
+SCRAPED_FILE = BASE_DIR / "scraped_data.json"          # Вкладка 1: Скрейпер (временный буфер)
+DB_FILE = BASE_DIR / "travel_master.db"                # База данных SQLite для оценки и архива
 
 GUIDE_PROMPT_FILE = BASE_DIR / "travel_guide_prompt.md"
 RATING_PROMPT_FILE = BASE_DIR / "travel_rating_prompt.md"

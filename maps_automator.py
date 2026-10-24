@@ -226,8 +226,8 @@ class MapsAutomator:
             if self._wait_cancelled(1200):
                 return False, "Прервано пользователем"
 
-            # 7. Вставка готовой заметки без повторной генерации
-            report("7/7: Открытие поля заметки...")
+            # 7. Проверка существующей заметки и вставка
+            report("7/7: Проверка существующей заметки...")
             card_panel = self._get_card_panel()
 
             accordion_header = card_panel.locator(
@@ -243,6 +243,15 @@ class MapsAutomator:
                     if self._wait_cancelled(1000):
                         return False, "Прервано пользователем"
 
+            # Сначала проверяем, есть ли уже заполненное поле textarea с текстом (существующая заметка)
+            existing_textarea = card_panel.locator('textarea').first
+            if existing_textarea.is_visible(timeout=1500):
+                existing_text = existing_textarea.input_value().strip()
+                if existing_text:
+                    page.keyboard.press("Escape")
+                    return False, f"Пропущено: у объекта уже есть ненужная к перезаписи заметка ({len(existing_text)} зн.)"
+
+            # Ищем кнопку добавления заметки, если поле еще не открыто
             note_btn = card_panel.locator(
                 'button:has-text("Добавить заметку"), '
                 'button[aria-label*="заметк" i], '
@@ -271,10 +280,16 @@ class MapsAutomator:
                 page.screenshot(path="debug_maps_card.png", full_page=False)
                 return False, "Не удалось открыть поле заметки на карточке"
 
+            # Двойная проверка содержимого текстового поля на случай, если там уже был текст
+            current_textarea_text = card_note_area.input_value().strip()
+            if current_textarea_text:
+                page.keyboard.press("Escape")
+                return False, f"Пропущено: у объекта уже есть сохраненная заметка ({len(current_textarea_text)} зн.)"
+
             if not guide_text:
                 guide_text = f"Объект: {place_name} ({search_region})"
 
-            report(f"7/7: Вставка готовой заметки ({len(guide_text)} зн.)...")
+            report(f"7/7: Вставка новой заметки ({len(guide_text)} зн.)...")
             card_note_area.scroll_into_view_if_needed()
             card_note_area.click(force=True)
             card_note_area.fill(guide_text)

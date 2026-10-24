@@ -167,12 +167,13 @@
         </div>
     </div>
 
-    <!-- ВКЛАДКА 2: Оценка ИИ (Двухпанельный интерфейс) -->
+    <!-- ВКЛАДКА 2: Оценка ИИ -->
     <div id="evaluateTab" class="tab-content">
         <div class="actions">
-            <button id="btnRateAll" class="btn-ai" onclick="rateAllItems()">⚡ Оценить всё через ИИ</button>
+            <button id="btnBlitzRate" class="btn-ai" onclick="runBlitzRate()" style="background: #f59e0b; color: #000; font-weight: bold;">⚡ Блиц-оценка (экран)</button>
+            <button id="btnRateAll" class="btn-ai" onclick="rateAllItems()">⚡ Оценить всё через ИИ (подробно)</button>
             <button style="background: #3a3b3c;" onclick="loadEvaluatedData()">↻ Обновить список</button>
-            <button class="btn-clear" onclick="openClearModal('evaluated')">🗑 Очистить список</button>
+            <button class="btn-clear" onclick="openClearModal('evaluated')">🗑 Очистить экран</button>
             <button id="btnTransferToPlaces" onclick="transferSelectedToPlaces()" style="background: #22c55e; color: #052e16; font-weight: bold;">💾 Перенести выбранные в импорт карт</button>
         </div>
 
@@ -194,9 +195,10 @@
                 </table>
             </div>
 
-            <!-- Правая панель: Предпросмотр, фото, текст гайда и кнопки управления -->
+            <!-- Правая панель: Предпросмотр -->
             <div id="previewPanel" style="width: 500px; background: #242526; border-radius: 8px; padding: 20px; border: 1px solid #393a3b; position: sticky; top: 20px; display: none; box-sizing: border-box;">
                 <h3 id="panelTitle" style="margin-top: 0; color: #fff; font-size: 16px; word-break: break-word;">Выберите объект</h3>
+                <div id="panelImportBadge" style="margin-bottom: 10px;"></div>
                 <div id="panelImageContainer" style="margin-bottom: 12px; text-align: center; background: #18191a; border-radius: 6px; padding: 4px; min-height: 100px; display: flex; align-items: center; justify-content: center;"></div>
                 <div id="panelLinks" style="margin-bottom: 12px; font-size: 13px;"></div>
                 <div id="panelRating" style="margin-bottom: 12px; font-size: 14px;"></div>
@@ -204,6 +206,7 @@
                 <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
                     <button class="btn-single btn-ai" onclick="rateSelectedPanelItem(false)">⚡ Оценить / Обновить</button>
                     <button class="btn-single" style="background: #3b82f6;" onclick="rateSelectedPanelItem(true)">📖 Полное описание</button>
+                    <button class="btn-single" style="background: #4b5563; color: #fff;" onclick="rejectSelectedPanelItem()">❌ Не интересно</button>
                 </div>
 
                 <div style="font-size: 13px; color: #b0b3b8; margin-bottom: 6px; font-weight: 600;">Сгенерированный текст гайда:</div>
@@ -297,7 +300,6 @@
         box.style.display = 'block';
     }
 
-    // --- Вкладка 1: Скрейпер ---
     async function loadScrapedData() {
         const res = await fetch('/api/scraped');
         scrapedItems = await res.json();
@@ -371,11 +373,10 @@
         });
         const data = await res.json();
         if (res.ok) {
-            showStatus(`✅ Перенесено на оценку: ${data.added_count} объектов. Перейдите на вкладку №2.`, "success");
+            showStatus(`✅ Перенесено: выбрано ${selectedItems.length} общ. (новых: ${data.added_count}, дублей: ${data.duplicate_count}, всего на экране: ${data.total_count}). Перейдите на вкладку №2.`, "success");
         }
     }
 
-    // --- Вкладка 2: Оценка ИИ (Двухпанельный UI) ---
     async function loadEvaluatedData() {
         const res = await fetch('/api/evaluated');
         evaluatedItems = await res.json();
@@ -388,7 +389,7 @@
         tbody.innerHTML = '';
 
         if (items.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 30px; color: #b0b3b8;">Список оценки пуст. Перенесите объекты с вкладки №1!</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 30px; color: #b0b3b8;">База оценки пуста. Перенесите объекты с вкладки №1!</td></tr>';
             document.getElementById('previewPanel').style.display = 'none';
             return;
         }
@@ -419,6 +420,25 @@
                 nameHtml += `<div style="font-size: 12px; color: #9ca3af; margin-top: 2px;">${item.original_name}</div>`;
             }
 
+            let statusBadges = '';
+            if (item.rating_comment && item.rating_comment.trim() !== '') {
+                if (item.rating_comment.startsWith('Отклонено:')) {
+                    statusBadges += `<span style="display: inline-block; background: rgba(107, 114, 128, 0.15); color: #9ca3af; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;">❌ Не интересно</span>`;
+                } else if (item.rating_comment.startsWith('Блиц-оценка:')) {
+                    statusBadges += `<span style="display: inline-block; background: rgba(245, 158, 11, 0.15); color: #f59e0b; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;">⚡ Пройдена блиц-оценка</span>`;
+                } else {
+                    statusBadges += `<span style="display: inline-block; background: rgba(52, 211, 153, 0.15); color: #34d399; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;">📖 Есть подробный гайд</span>`;
+                }
+            }
+
+            if (item.imported_list) {
+                statusBadges += `<span style="display: inline-block; background: rgba(45, 136, 255, 0.15); color: #60a5fa; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-top: 3px;">📌 В картах: ${item.imported_list}</span>`;
+            }
+
+            if (statusBadges) {
+                nameHtml += `<div style="margin-top: 2px;">${statusBadges}</div>`;
+            }
+
             tr.innerHTML = `
                 <td class="checkbox-cell">
                     <input type="checkbox" class="evaluated-item-check" data-id="${item.id}" checked>
@@ -445,19 +465,28 @@
         }
     }
 
-    function selectEvaluatedItem(id) {
+    async function selectEvaluatedItem(id) {
         selectedPanelItemId = id;
         document.querySelectorAll('#evaluatedTableBody tr').forEach(tr => tr.classList.remove('selected-row'));
         const activeRow = document.getElementById(`eval-row-${id}`);
         if (activeRow) activeRow.classList.add('selected-row');
 
-        const item = evaluatedItems.find(x => x.id === id);
-        const panel = document.getElementById('previewPanel');
-        if (!item) { panel.style.display = 'none'; return; }
+        const res = await fetch(`/api/evaluated/${id}`);
+        if (!res.ok) return;
+        const item = await res.json();
 
+        const panel = document.getElementById('previewPanel');
         panel.style.display = 'block';
+        
         document.getElementById('panelTitle').innerText = item.name + (item.original_name ? ` (${item.original_name})` : '');
         
+        const badgeContainer = document.getElementById('panelImportBadge');
+        if (item.imported_list) {
+            badgeContainer.innerHTML = `<div style="background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.3); color: #34d399; padding: 6px 10px; border-radius: 4px; font-size: 12px;">📌 Ранее добавлено на карты в список: <strong>${item.imported_list}</strong></div>`;
+        } else {
+            badgeContainer.innerHTML = '';
+        }
+
         const imgContainer = document.getElementById('panelImageContainer');
         if (item.image) {
             imgContainer.innerHTML = `<img src="${item.image}" style="max-width: 100%; max-height: 180px; border-radius: 4px; object-fit: cover;" onerror="this.parentElement.innerHTML='<span style=\\'color:#6b7280; font-size:12px;\\'>Не удалось загрузить фото</span>'">`;
@@ -480,8 +509,10 @@
 
     async function rateSelectedPanelItem(fullDescription = false) {
         if (!selectedPanelItemId) return;
-        const item = evaluatedItems.find(x => x.id === selectedPanelItemId);
-        if (!item) return;
+        
+        const resMeta = await fetch(`/api/evaluated/${selectedPanelItemId}`);
+        if (!resMeta.ok) return;
+        const item = await resMeta.json();
 
         const textDiv = document.getElementById('panelTextContent');
         textDiv.innerText = '🤖 ИИ анализирует объект по скиллу...';
@@ -499,16 +530,63 @@
             });
             const data = await res.json();
             if (res.ok && data.status === 'success') {
-                const r = data.result;
-                item.rating = r.personal_rating;
-                item.rating_comment = r.comment;
-                selectEvaluatedItem(item.id);
+                selectEvaluatedItem(selectedPanelItemId);
                 loadEvaluatedData();
             } else {
                 textDiv.innerText = 'Ошибка при генерации.';
             }
         } catch (e) {
             textDiv.innerText = 'Сбой запроса к серверу.';
+        }
+    }
+
+    async function rejectSelectedPanelItem() {
+        if (!selectedPanelItemId) return;
+        try {
+            const res = await fetch(`/api/evaluated/${selectedPanelItemId}/reject`, { method: 'POST' });
+            if (res.ok) {
+                selectEvaluatedItem(selectedPanelItemId);
+                loadEvaluatedData();
+            } else {
+                alert('Ошибка при отклонении объекта.');
+            }
+        } catch (e) {
+            alert('Сбой запроса к серверу.');
+        }
+    }
+
+    async function runBlitzRate() {
+        const itemIds = evaluatedItems
+            .filter(item => !item.rating || item.rating === '-')
+            .map(item => item.id);
+
+        if (itemIds.length === 0) {
+            alert('Нет неоцененных объектов на экране!');
+            return;
+        }
+
+        const btn = document.getElementById('btnBlitzRate');
+        btn.disabled = true;
+        btn.innerText = '⏳ Блиц-оценка выполняется...';
+
+        try {
+            const res = await fetch('/api/ai/batch_rate_blitz', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ item_ids: itemIds })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert(`✅ Блиц-оценка завершена! Обработано объектов на экране: ${data.processed_count}`);
+                loadEvaluatedData();
+            } else {
+                alert('Ошибка при выполнении блиц-оценки.');
+            }
+        } catch (e) {
+            alert('Сбой запроса к серверу.');
+        } finally {
+            btn.disabled = false;
+            btn.innerText = '⚡ Блиц-оценка (экран)';
         }
     }
 
@@ -546,8 +624,9 @@
 
     async function transferCurrentPanelItem() {
         if (!selectedPanelItemId) return;
-        const item = evaluatedItems.find(x => x.id === selectedPanelItemId);
-        if (!item) return;
+        const resMeta = await fetch(`/api/evaluated/${selectedPanelItemId}`);
+        if (!resMeta.ok) return;
+        const item = await resMeta.json();
 
         const res = await fetch('/api/evaluated/transfer_to_places', {
             method: 'POST',
@@ -557,6 +636,7 @@
         const data = await res.json();
         if (res.ok) {
             alert(`✅ Объект «${item.name}» успешно передан в очередь импорта карт!`);
+            loadEvaluatedData();
             loadPlacesData(true);
         }
     }
@@ -564,7 +644,12 @@
     async function transferSelectedToPlaces() {
         const checkboxes = document.querySelectorAll('.evaluated-item-check:checked');
         const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.getAttribute('data-id')));
-        const selectedItems = evaluatedItems.filter(x => selectedIds.includes(x.id));
+        
+        const selectedItems = [];
+        for (let id of selectedIds) {
+            const res = await fetch(`/api/evaluated/${id}`);
+            if (res.ok) selectedItems.push(await res.json());
+        }
 
         if (selectedItems.length === 0) {
             showModal({ title: "Внимание", body: "Не выбрано ни одного объекта для импорта!", confirmText: "Понятно", onConfirm: () => {} });
@@ -579,10 +664,10 @@
         const data = await res.json();
         if (res.ok) {
             alert(`✅ Успешно передано в очередь импорта карт: ${data.added_count} объектов. Перейдите на вкладку №3.`);
+            loadEvaluatedData();
         }
     }
 
-    // --- Вкладка 3: Импорт в карты ---
     async function loadPlacesData(reloadFromFile = false) {
         const url = reloadFromFile ? '/api/places?reload=true' : '/api/places';
         const res = await fetch(url);
@@ -652,8 +737,8 @@
         let endpoint = "";
 
         if (target === 'scraped') { endpoint = '/api/scraped'; body = "Очистить все собранные объекты?"; }
-        else if (target === 'evaluated') { endpoint = '/api/evaluated'; body = "Очистить список оценки ИИ?"; }
-        else if (target === 'places') { endpoint = '/api/places'; body = "Очистить всю очередь импорта в карты?"; }
+        else if (target === 'evaluated') { endpoint = '/api/evaluated'; body = "Скрыть с экрана уже перенесенные на карты объекты?"; }
+        else if (target === 'places') { endpoint = '/api/places'; body = "Очистить выполненные задачи из очереди?"; }
 
         showModal({
             title: title, body: body, confirmText: "Очистить",
@@ -749,7 +834,7 @@
 
     async function runTripScraper() {
         const region = document.getElementById('tripRegion').value.trim();
-        const limit = document.getElementById('tripLimit').value.trim();
+        let limit = document.getElementById('tripLimit').value.trim();
         const listName = document.getElementById('tripListName').value.trim();
         const runBtn = document.getElementById('btnRunScraper');
         const stopBtn = document.getElementById('btnStopScraper');

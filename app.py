@@ -1,13 +1,14 @@
 import json
 import sys
 import io
+import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from config import PLACES_FILE, SCRAPED_FILE, EVALUATED_FILE
+from config import PLACES_FILE, SCRAPED_FILE, DB_FILE
 from maps_automator import MapsAutomator
 from scrapers.trip_scraper import scrape_trip_attractions
 import ai_service
@@ -19,6 +20,38 @@ TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 trip_cancelled = False
+
+# --- Инициализация SQLite с автомиграцией колонки archived ---
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS evaluated_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            original_name TEXT,
+            search_region TEXT,
+            url TEXT,
+            image TEXT,
+            rating TEXT DEFAULT '-',
+            personal_rating REAL DEFAULT 0.0,
+            global_rating REAL DEFAULT 0.0,
+            rating_comment TEXT DEFAULT '',
+            list_name TEXT DEFAULT 'Хочу посетить',
+            imported_list TEXT DEFAULT '',
+            archived INTEGER DEFAULT 0,
+            UNIQUE(name, search_region)
+        )
+    ''')
+    cursor.execute("PRAGMA table_info(evaluated_items)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if "archived" not in columns:
+        cursor.execute("ALTER TABLE evaluated_items ADD COLUMN archived INTEGER DEFAULT 0")
+        
+    conn.commit()
+    conn.close()
+
+init_db()
 
 class LogBuffer(io.TextIOBase):
     def __init__(self):
@@ -71,7 +104,6 @@ def save_json_file(file_path: Path, data: list):
 
 
 scraped_cache = load_json_file(SCRAPED_FILE)
-evaluated_cache = load_json_file(EVALUATED_FILE)
 places_cache = load_json_file(PLACES_FILE)
 
 
@@ -157,21 +189,18 @@ def clear_scraped():
 
 @app.post("/api/scraped/transfer_to_evaluated")
 async def transfer_to_evaluated(request: Request):
-    global evaluated_cache
     try:
         items = await request.json()
     except Exception:
         return JSONResponse({"status": "error", "message": "Некорректный JSON"}, status_code=400)
 
-    existing_pairs = {
-        (
-            (x.get("name") or "").strip().lower(),
-            (x.get("list_name") or "Хочу посетить").strip().lower()
-        )
-        for x in evaluated_cache
-    }
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
     
     added_count = 0
+    duplicate_count = 0
+    
     for item in items:
         raw_name = (item.get("name") or "").strip()
         orig_name = (item.get("original_name") or "").strip()
@@ -179,39 +208,74 @@ async def transfer_to_evaluated(request: Request):
         item_img = (item.get("image") or "").strip()
         search_reg = (item.get("search_region") or "").strip()
         raw_list = (item.get("list_name") or "Хочу посетить").strip()
+        
         if not raw_name:
             continue
         
-        pair_key = (raw_name.lower(), raw_list.lower())
-        if pair_key not in existing_pairs:
-            evaluated_cache.append({
-                "id": len(evaluated_cache) + 1,
-                "name": raw_name,
-                "original_name": orig_name,
-                "url": item_url,
-                "image": item_img,
-                "search_region": search_reg,
-                "rating": item.get("rating", "-"),
-                "rating_comment": item.get("rating_comment", ""),
-                "list_name": raw_list
-            })
-            existing_pairs.add(pair_key)
+        cursor.execute("SELECT id FROM evaluated_items WHERE LOWER(name) = LOWER(?) AND LOWER(search_region) = LOWER(?)", (raw_name, search_reg))
+        existing = cursor.fetchone()
+        
+        if not existing:
+            cursor.execute('''
+                INSERT INTO evaluated_items (name, original_name, search_region, url, image, list_name)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (raw_name, orig_name, search_reg, item_url, item_img, raw_list))
             added_count += 1
+        else:
+            cursor.execute('''
+                UPDATE evaluated_items 
+                SET url = COALESCE(NULLIF(?, ''), url), 
+                    image = COALESCE(NULLIF(?, ''), image),
+                    original_name = COALESCE(NULLIF(?, ''), original_name),
+                    archived = 0
+                WHERE id = ?
+            ''', (item_url, item_img, orig_name, existing["id"]))
+            duplicate_count += 1
 
-    save_json_file(EVALUATED_FILE, evaluated_cache)
-    return JSONResponse({"status": "success", "added_count": added_count, "total_count": len(evaluated_cache)})
+    conn.commit()
+    cursor.execute("SELECT COUNT(*) FROM evaluated_items WHERE archived = 0")
+    total_count = cursor.fetchone()[0]
+    conn.close()
+    
+    return JSONResponse({
+        "status": "success", 
+        "added_count": added_count, 
+        "duplicate_count": duplicate_count, 
+        "total_count": total_count
+    })
 
 
 @app.get("/api/evaluated")
 def get_evaluated():
-    global evaluated_cache
-    return JSONResponse(evaluated_cache)
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, name, original_name, search_region, url, image, 
+               rating, personal_rating, global_rating, list_name, imported_list, archived, rating_comment 
+        FROM evaluated_items WHERE archived = 0 ORDER BY id DESC
+    """)
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return JSONResponse(rows)
+
+
+@app.get("/api/evaluated/{item_id}")
+def get_evaluated_item(item_id: int):
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM evaluated_items WHERE id = ?", (item_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return JSONResponse({"status": "error", "message": "Объект не найден"}, status_code=404)
+    return JSONResponse(dict(row))
 
 
 @app.post("/api/ai/rate_place")
 async def rate_place_endpoint(request: Request):
     import asyncio
-    global evaluated_cache
     try:
         body = await request.json()
         place_name = body.get("name", "").strip()
@@ -227,39 +291,92 @@ async def rate_place_endpoint(request: Request):
     loop = asyncio.get_running_loop()
     res = await loop.run_in_executor(executor, ai_service.rate_attraction, place_name, region, original_name, full_desc)
 
-    for item in evaluated_cache:
-        if item.get("name", "").strip().lower() == place_name.lower():
-            item["rating"] = res.get("personal_rating", 0.0)
-            item["personal_rating"] = res.get("personal_rating", 0.0)
-            item["global_rating"] = res.get("global_rating", 0.0)
-            item["rating_comment"] = res.get("comment", "")
-            if original_name and not item.get("original_name"):
-                item["original_name"] = original_name
-            if region and not item.get("search_region"):
-                item["search_region"] = region
-            break
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE evaluated_items 
+        SET rating = ?, personal_rating = ?, global_rating = ?, rating_comment = ?
+        WHERE LOWER(name) = LOWER(?)
+    ''', (str(res.get("personal_rating", 0.0)), res.get("personal_rating", 0.0), res.get("global_rating", 0.0), res.get("comment", ""), place_name))
+    conn.commit()
+    conn.close()
 
-    save_json_file(EVALUATED_FILE, evaluated_cache)
     return JSONResponse({"status": "success", "result": res})
+
+
+@app.post("/api/ai/batch_rate_blitz")
+async def batch_rate_blitz(request: Request):
+    import asyncio
+    try:
+        body = await request.json()
+        item_ids = body.get("item_ids", [])
+    except Exception:
+        item_ids = []
+
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    if item_ids:
+        placeholders = ','.join(['?'] * len(item_ids))
+        cursor.execute(f"SELECT id, name, original_name, search_region FROM evaluated_items WHERE id IN ({placeholders}) AND (rating = '-' OR rating IS NULL) AND archived = 0", item_ids)
+    else:
+        cursor.execute("SELECT id, name, original_name, search_region FROM evaluated_items WHERE (rating = '-' OR rating IS NULL) AND archived = 0")
+        
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+
+    if not rows:
+        return JSONResponse({"status": "success", "processed_count": 0, "message": "Нет неоцененных объектов на экране"})
+
+    chunk_size = 15
+    processed_count = 0
+    loop = asyncio.get_running_loop()
+
+    for i in range(0, len(rows), chunk_size):
+        chunk = rows[i:i + chunk_size]
+        results = await loop.run_in_executor(executor, ai_service.rate_attractions_batch, chunk)
+        
+        if results and isinstance(results, list):
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+            for res in results:
+                r_name = res.get("name", "").strip()
+                r_score = res.get("rating", 5.0)
+                r_reason = res.get("reason", "")
+                
+                cursor.execute('''
+                    UPDATE evaluated_items 
+                    SET rating = ?, personal_rating = ?, global_rating = ?, rating_comment = ?
+                    WHERE LOWER(name) = LOWER(?) AND archived = 0
+                ''', (str(r_score), float(r_score), float(r_score), f"Блиц-оценка: {r_reason}", r_name))
+                processed_count += 1
+            conn.commit()
+            conn.close()
+
+    return JSONResponse({"status": "success", "processed_count": processed_count})
 
 
 @app.delete("/api/evaluated/{item_id}")
 def delete_evaluated_item(item_id: int):
-    global evaluated_cache
-    evaluated_cache = [x for x in evaluated_cache if x["id"] != item_id]
-    save_json_file(EVALUATED_FILE, evaluated_cache)
-    return JSONResponse({"status": "deleted", "id": item_id})
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE evaluated_items SET archived = 1 WHERE id = ?", (item_id,))
+    conn.commit()
+    conn.close()
+    return JSONResponse({"status": "archived", "id": item_id})
 
 
 @app.delete("/api/evaluated")
 def clear_evaluated():
-    global evaluated_cache
-    evaluated_cache = []
-    save_json_file(EVALUATED_FILE, evaluated_cache)
-    return JSONResponse({"status": "cleared"})
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE evaluated_items SET archived = 1 WHERE imported_list != '' AND imported_list IS NOT NULL")
+    conn.commit()
+    conn.close()
+    return JSONResponse({"status": "screen_cleared"})
 
 
-# Перенос из Оценки (Вкладка 2) в Импорт карт (Вкладка 3) с готовым текстом заметки
 @app.post("/api/evaluated/transfer_to_places")
 async def transfer_to_places(request: Request):
     global places_cache
@@ -276,6 +393,9 @@ async def transfer_to_places(request: Request):
         for x in places_cache
     }
     
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+
     added_count = 0
     for item in items:
         raw_name = (item.get("name") or "").strip()
@@ -284,11 +404,13 @@ async def transfer_to_places(request: Request):
         item_img = (item.get("image") or "").strip()
         search_reg = (item.get("search_region") or "").strip()
         raw_list = (item.get("list_name") or "Хочу посетить").strip()
-        guide_text = (item.get("rating_comment") or "").strip() # Готовый гайд со 2-й вкладки
+        guide_text = (item.get("rating_comment") or "").strip()
         
         if not raw_name:
             continue
         
+        cursor.execute("UPDATE evaluated_items SET imported_list = ? WHERE LOWER(name) = LOWER(?)", (raw_list, raw_name))
+
         pair_key = (raw_name.lower(), raw_list.lower())
         if pair_key not in existing_pairs:
             places_cache.append({
@@ -299,13 +421,16 @@ async def transfer_to_places(request: Request):
                 "image": item_img,
                 "search_region": search_reg,
                 "rating": item.get("rating", "-"),
-                "rating_comment": guide_text,  # Передаем готовый текст как заметку
+                "rating_comment": guide_text,
                 "list_name": raw_list,
                 "status": "В очереди",
                 "error": ""
             })
             existing_pairs.add(pair_key)
             added_count += 1
+
+    conn.commit()
+    conn.close()
 
     save_json_file(PLACES_FILE, places_cache)
     return JSONResponse({"status": "success", "added_count": added_count, "total_count": len(places_cache)})
@@ -382,9 +507,39 @@ def delete_place(item_id: int):
 @app.delete("/api/places")
 def clear_all_places():
     global places_cache
-    places_cache = []
+    places_cache = [x for x in places_cache if x.get("status") in ["В очереди", "Ошибка"]]
     save_json_file(PLACES_FILE, places_cache)
-    return JSONResponse({"status": "cleared"})
+    return JSONResponse({"status": "cleared_completed"})
+
+@app.post("/api/evaluated/{item_id}/reject")
+def reject_evaluated_item(item_id: int):
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # Получаем текущий текст комментария/описания
+    cursor.execute("SELECT rating_comment FROM evaluated_items WHERE id = ?", (item_id,))
+    row = cursor.fetchone()
+    
+    if row:
+        current_comment = (row["rating_comment"] or "").strip()
+        
+        # Если статус "Не интересно" еще не проставлен, добавляем его в начало, сохраняя остальной текст
+        if not current_comment.startswith("Отклонено: Не интересно"):
+            if current_comment and current_comment != "-":
+                new_comment = f"Отклонено: Не интересно\n\n{current_comment}"
+            else:
+                new_comment = "Отклонено: Не интересно"
+                
+            cursor.execute("""
+                UPDATE evaluated_items 
+                SET rating_comment = ? 
+                WHERE id = ?
+            """, (new_comment, item_id))
+            conn.commit()
+            
+    conn.close()
+    return JSONResponse({"status": "rejected", "id": item_id})
 
 
 if __name__ == "__main__":
