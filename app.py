@@ -1,12 +1,14 @@
 import json
 import sys
 import io
+import math
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from config import PLACES_FILE, SCRAPED_FILE, DB_FILE
 from maps_automator import MapsAutomator
@@ -17,9 +19,24 @@ automator = MapsAutomator()
 executor = ThreadPoolExecutor(max_workers=3)
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 trip_cancelled = False
+
+
+def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Вычисляет расстояние между двумя гео-точками в километрах."""
+    if not lat1 or not lon1 or not lat2 or not lon2:
+        return 0.0
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat / 2) ** 2 +
+         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2)
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
+
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -33,13 +50,17 @@ def init_db():
             search_region TEXT,
             url TEXT,
             image TEXT,
+            lat REAL DEFAULT 0.0,
+            lon REAL DEFAULT 0.0,
+            address TEXT DEFAULT '',
             rating TEXT DEFAULT '-',
             personal_rating REAL DEFAULT 0.0,
             global_rating REAL DEFAULT 0.0,
             rating_comment TEXT DEFAULT '',
             list_name TEXT DEFAULT 'Хочу посетить',
             imported_list TEXT DEFAULT '',
-            archived INTEGER DEFAULT 0
+            archived INTEGER DEFAULT 0,
+            hidden INTEGER DEFAULT 0
         )
     ''')
 
@@ -47,12 +68,16 @@ def init_db():
     columns = [col[1] for col in cursor.fetchall()]
     if "archived" not in columns:
         cursor.execute("ALTER TABLE evaluated_items ADD COLUMN archived INTEGER DEFAULT 0")
+    if "hidden" not in columns:
+        cursor.execute("ALTER TABLE evaluated_items ADD COLUMN hidden INTEGER DEFAULT 0")
+    if "lat" not in columns:
+        cursor.execute("ALTER TABLE evaluated_items ADD COLUMN lat REAL DEFAULT 0.0")
+    if "lon" not in columns:
+        cursor.execute("ALTER TABLE evaluated_items ADD COLUMN lon REAL DEFAULT 0.0")
+    if "address" not in columns:
+        cursor.execute("ALTER TABLE evaluated_items ADD COLUMN address TEXT DEFAULT ''")
 
-    cursor.execute('''
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_evaluated_orig_name 
-        ON evaluated_items(original_name) 
-        WHERE original_name IS NOT NULL AND TRIM(original_name) != ''
-    ''')
+    cursor.execute("DROP INDEX IF EXISTS idx_evaluated_orig_name")
         
     conn.commit()
     conn.close()
@@ -86,6 +111,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 def load_json_file(file_path: Path) -> list:
@@ -196,13 +222,24 @@ def clear_scraped():
 @app.post("/api/scraped/transfer_to_evaluated")
 async def transfer_to_evaluated(request: Request):
     try:
-        items = await request.json()
+        body = await request.json()
+        if isinstance(body, dict):
+            items = body.get("items", [])
+            clear_existing = body.get("clear", False)
+        else:
+            items = body
+            clear_existing = False
     except Exception:
         return JSONResponse({"status": "error", "message": "Некорректный JSON"}, status_code=400)
 
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    
+    if clear_existing:
+        cursor.execute("UPDATE evaluated_items SET archived = 1 WHERE archived = 0")
+
+    cursor.execute("UPDATE evaluated_items SET hidden = 0")
     
     added_count = 0
     duplicate_count = 0
@@ -212,29 +249,46 @@ async def transfer_to_evaluated(request: Request):
         orig_name = (item.get("original_name") or "").strip()
         item_url = (item.get("url") or "").strip()
         item_img = (item.get("image") or "").strip()
+        item_lat = float(item.get("lat") or 0.0)
+        item_lon = float(item.get("lon") or 0.0)
+        item_addr = (item.get("address") or "").strip()
         search_reg = (item.get("search_region") or "").strip()
         raw_list = (item.get("list_name") or "Хочу посетить").strip()
         
         if not raw_name and not orig_name:
             continue
         
-        existing = None
+        candidates = []
         if orig_name:
-            cursor.execute("SELECT id, search_region FROM evaluated_items WHERE LOWER(TRIM(original_name)) = LOWER(?)", (orig_name,))
-            existing = cursor.fetchone()
+            cursor.execute("SELECT id, search_region, lat, lon, address FROM evaluated_items WHERE archived = 0 AND LOWER(TRIM(original_name)) = LOWER(?)", (orig_name,))
+            candidates = cursor.fetchall()
         
-        if not existing and raw_name:
-            cursor.execute("SELECT id, search_region FROM evaluated_items WHERE LOWER(TRIM(name)) = LOWER(?)", (raw_name,))
-            existing = cursor.fetchone()
+        if not candidates and raw_name:
+            cursor.execute("SELECT id, search_region, lat, lon, address FROM evaluated_items WHERE archived = 0 AND LOWER(TRIM(name)) = LOWER(?)", (raw_name,))
+            candidates = cursor.fetchall()
+
+        matched_existing = None
+        for cand in candidates:
+            c_lat = float(cand["lat"] or 0.0)
+            c_lon = float(cand["lon"] or 0.0)
+
+            if item_lat and item_lon and c_lat and c_lon:
+                dist = haversine_distance(item_lat, item_lon, c_lat, c_lon)
+                if dist <= 10.0:
+                    matched_existing = cand
+                    break
+            else:
+                matched_existing = cand
+                break
         
-        if not existing:
+        if not matched_existing:
             cursor.execute('''
-                INSERT INTO evaluated_items (name, original_name, search_region, url, image, list_name)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (raw_name, orig_name, search_reg, item_url, item_img, raw_list))
+                INSERT INTO evaluated_items (name, original_name, search_region, url, image, lat, lon, address, list_name, archived, hidden)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
+            ''', (raw_name, orig_name, search_reg, item_url, item_img, item_lat, item_lon, item_addr, raw_list))
             added_count += 1
         else:
-            existing_regions = [r.strip() for r in (existing["search_region"] or "").split(",") if r.strip()]
+            existing_regions = [r.strip() for r in (matched_existing["search_region"] or "").split(",") if r.strip()]
             if search_reg and search_reg not in existing_regions:
                 existing_regions.append(search_reg)
             merged_regions = ", ".join(existing_regions)
@@ -244,10 +298,14 @@ async def transfer_to_evaluated(request: Request):
                 SET url = COALESCE(NULLIF(?, ''), url), 
                     image = COALESCE(NULLIF(?, ''), image),
                     original_name = COALESCE(NULLIF(?, ''), original_name),
+                    lat = CASE WHEN lat = 0.0 THEN ? ELSE lat END,
+                    lon = CASE WHEN lon = 0.0 THEN ? ELSE lon END,
+                    address = COALESCE(NULLIF(?, ''), address),
                     search_region = ?,
-                    archived = 0
+                    archived = 0,
+                    hidden = 0
                 WHERE id = ?
-            ''', (item_url, item_img, orig_name, merged_regions, existing["id"]))
+            ''', (item_url, item_img, orig_name, item_lat, item_lon, item_addr, merged_regions, matched_existing["id"]))
             duplicate_count += 1
 
     conn.commit()
@@ -269,13 +327,29 @@ def get_evaluated():
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT id, name, original_name, search_region, url, image, 
-               rating, personal_rating, global_rating, list_name, imported_list, archived, rating_comment 
+        SELECT id, name, original_name, search_region, url, image, lat, lon, address,
+               rating, personal_rating, global_rating, list_name, imported_list, archived, hidden, rating_comment 
         FROM evaluated_items WHERE archived = 0 ORDER BY id DESC
     """)
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return JSONResponse(rows)
+
+
+@app.post("/api/evaluated/{item_id}/toggle_hide")
+def toggle_hide_evaluated_item(item_id: int):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT hidden FROM evaluated_items WHERE id = ?", (item_id,))
+    row = cursor.fetchone()
+    if row:
+        new_val = 0 if row[0] else 1
+        cursor.execute("UPDATE evaluated_items SET hidden = ? WHERE id = ?", (new_val, item_id))
+        conn.commit()
+        conn.close()
+        return JSONResponse({"status": "success", "hidden": new_val})
+    conn.close()
+    return JSONResponse({"status": "error", "message": "Объект не найден"}, status_code=404)
 
 
 @app.get("/api/evaluated/{item_id}")
@@ -329,7 +403,7 @@ async def rate_place_endpoint(request: Request):
         item_id = body.get("id")
         place_name = body.get("name", "").strip()
         original_name = body.get("original_name", "").strip()
-        region = body.get("region", "").strip()
+        address = body.get("address", "").strip()
         full_desc = body.get("full_description", False)
     except Exception:
         return JSONResponse({"status": "error", "message": "Некорректный JSON"}, status_code=400)
@@ -337,11 +411,21 @@ async def rate_place_endpoint(request: Request):
     if not place_name and not original_name:
         return JSONResponse({"status": "error", "message": "Не указано имя объекта"}, status_code=400)
 
+    if item_id and not address:
+        conn = sqlite3.connect(DB_FILE)
+        cur = conn.cursor()
+        cur.execute("SELECT address FROM evaluated_items WHERE id = ?", (item_id,))
+        row = cur.fetchone()
+        if row and row[0]:
+            address = row[0].strip()
+        conn.close()
+
     loop = asyncio.get_running_loop()
+    # Передаем адрес в качестве основного локационного контекста вместо региона
     if full_desc:
-        res = await loop.run_in_executor(executor, ai_service.rate_attraction, place_name, region, original_name, True)
+        res = await loop.run_in_executor(executor, ai_service.rate_attraction, place_name, address, original_name, True, address)
     else:
-        res = await loop.run_in_executor(executor, ai_service.quick_audit_attraction, place_name, region, original_name)
+        res = await loop.run_in_executor(executor, ai_service.quick_audit_attraction, place_name, address, original_name, address)
 
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -378,9 +462,9 @@ async def batch_rate_blitz(request: Request):
     
     if item_ids:
         placeholders = ','.join(['?'] * len(item_ids))
-        cursor.execute(f"SELECT id, name, original_name, search_region FROM evaluated_items WHERE id IN ({placeholders}) AND (rating = '-' OR rating IS NULL) AND archived = 0", item_ids)
+        cursor.execute(f"SELECT id, name, original_name, search_region, address FROM evaluated_items WHERE id IN ({placeholders}) AND (rating = '-' OR rating IS NULL) AND archived = 0", item_ids)
     else:
-        cursor.execute("SELECT id, name, original_name, search_region FROM evaluated_items WHERE (rating = '-' OR rating IS NULL) AND archived = 0")
+        cursor.execute("SELECT id, name, original_name, search_region, address FROM evaluated_items WHERE (rating = '-' OR rating IS NULL) AND archived = 0")
         
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
@@ -462,6 +546,9 @@ async def transfer_to_places(request: Request):
         orig_name = (item.get("original_name") or "").strip()
         item_url = (item.get("url") or "").strip()
         item_img = (item.get("image") or "").strip()
+        item_lat = float(item.get("lat") or 0.0)
+        item_lon = float(item.get("lon") or 0.0)
+        item_addr = (item.get("address") or "").strip()
         search_reg = (item.get("search_region") or "").strip()
         raw_list = (item.get("list_name") or "Хочу посетить").strip()
         guide_text = (item.get("rating_comment") or "").strip()
@@ -469,7 +556,6 @@ async def transfer_to_places(request: Request):
         if not raw_name and not orig_name:
             continue
         
-        # Получаем уже сохраненные списки импорта и аккуратно дописываем новый
         cursor.execute("SELECT imported_list FROM evaluated_items WHERE id = ?", (item.get("id"),))
         row = cursor.fetchone()
         existing_lists = [l.strip() for l in (row[0] or "").split(",") if l.strip()] if row else []
@@ -479,7 +565,7 @@ async def transfer_to_places(request: Request):
 
         cursor.execute("UPDATE evaluated_items SET imported_list = ? WHERE id = ?", (merged_lists, item.get("id")))
 
-        item_key = orig_name.lower() if orig_name else raw_name.lower()
+        item_key = f"{orig_name.lower()}_{item_lat:.2f}" if (orig_name and item_lat) else (orig_name.lower() if orig_name else raw_name.lower())
         if item_key not in existing_keys:
             places_cache.append({
                 "id": len(places_cache) + 1,
@@ -487,6 +573,9 @@ async def transfer_to_places(request: Request):
                 "original_name": orig_name,
                 "url": item_url,
                 "image": item_img,
+                "lat": item_lat,
+                "lon": item_lon,
+                "address": item_addr,
                 "search_region": search_reg,
                 "rating": item.get("rating", "-"),
                 "rating_comment": guide_text,
@@ -494,10 +583,7 @@ async def transfer_to_places(request: Request):
                 "status": "В очереди",
                 "error": ""
             })
-            if orig_name:
-                existing_keys.add(orig_name.lower())
-            if raw_name:
-                existing_keys.add(raw_name.lower())
+            existing_keys.add(item_key)
             added_count += 1
 
     conn.commit()

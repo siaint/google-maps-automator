@@ -1,5 +1,7 @@
 import sys
 from pathlib import Path
+import re
+import json
 
 # Добавляем корень проекта в путь поиска Python
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -172,7 +174,7 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
 
             print(f"\nСобрано ссылок из списка: {len(raw_attractions)}. Начинаем парсинг детальных карточек...")
 
-            # 5. Проваливаемся в каждую карточку для получения оригинального названия и превью
+            # 5. Проваливаемся в каждую карточку для получения оригинального названия, превью, координат и адреса
             for idx, item in enumerate(raw_attractions, 1):
                 if stop_callback and stop_callback():
                     print("\n[!] Остановка сбора по запросу пользователя.")
@@ -185,9 +187,84 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
 
                 orig_name = ""
                 img_url = ""
+                lat = 0.0
+                lon = 0.0
+                address_text = ""
+
                 try:
                     page.goto(detail_url, wait_until="domcontentloaded", timeout=15000)
-                    page.wait_for_timeout(1500)
+                    page.wait_for_timeout(1200)
+
+                    # Извлечение координат и сырого адреса
+                    geo_info = page.evaluate(r"""() => {
+                        let res = { lat: 0.0, lon: 0.0, address: "" };
+                        try {
+                            const scripts = document.querySelectorAll('script[type="application/ld+json"], script#__NEXT_DATA__');
+                            for (let s of scripts) {
+                                try {
+                                    let data = JSON.parse(s.innerText);
+                                    let geo = data.geo || (data.props && data.props.pageProps && data.props.pageProps.poiInfo);
+                                    if (geo) {
+                                        if (geo.latitude && geo.longitude) {
+                                            res.lat = parseFloat(geo.latitude);
+                                            res.lon = parseFloat(geo.longitude);
+                                        }
+                                        if (geo.address) {
+                                            res.address = typeof geo.address === 'string' ? geo.address : (geo.address.streetAddress || '');
+                                        }
+                                    }
+                                } catch(e){}
+                            }
+                        } catch(e){}
+
+                        if (!res.lat && window.__INITIAL_STATE__) {
+                            try {
+                                let stateStr = JSON.stringify(window.__INITIAL_STATE__);
+                                let mLat = stateStr.match(/"lat(?:itude)?":\s*([0-9]+\.[0-9]+)/i);
+                                let mLon = stateStr.match(/"lon(?:gitude)?":\s*([0-9]+\.[0-9]+)/i);
+                                if (mLat && mLon) {
+                                    res.lat = parseFloat(mLat[1]);
+                                    res.lon = parseFloat(mLon[1]);
+                                }
+                            } catch(e){}
+                        }
+
+                        if (!res.lat) {
+                            const mapLinks = document.querySelectorAll('a[href*="maps"], a[href*="coord"], div[data-lat]');
+                            for (let a of mapLinks) {
+                                let href = a.getAttribute('href') || a.getAttribute('data-lat') || '';
+                                let m = href.match(/([0-9]+\.[0-9]{3,})[,_]([0-9]+\.[0-9]{3,})/);
+                                if (m) {
+                                    res.lat = parseFloat(m[1]);
+                                    res.lon = parseFloat(m[2]);
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Поиск адреса в DOM с удалением кнопок карт и иконок
+                        if (!res.address) {
+                            const addrEl = document.querySelector('div[class*="address"], span[class*="Address"], div[class*="location"]');
+                            if (addrEl) {
+                                const clone = addrEl.cloneNode(true);
+                                clone.querySelectorAll('button, a, i, svg, [class*="map"], [class*="icon"]').forEach(el => el.remove());
+                                res.address = clone.innerText || clone.textContent || "";
+                            }
+                        }
+
+                        return res;
+                    }""")
+
+                    if geo_info:
+                        lat = float(geo_info.get("lat") or 0.0)
+                        lon = float(geo_info.get("lon") or 0.0)
+                        raw_addr = str(geo_info.get("address") or "").strip()
+                        
+                        # Чистовая очистка адреса в Python
+                        raw_addr = re.sub(r'^Address[:\s]*', '', raw_addr, flags=re.IGNORECASE)
+                        raw_addr = re.sub(r'[\r\n\t]+', ' ', raw_addr)
+                        raw_addr = re.sub(r'[\s|·•]*Map\b.*$', '', raw_addr, flags=re.IGNORECASE)
+                        address_text = re.sub(r'[\uE000-\uF8FF\uFFF0-\uFFFF\u25A0-\u25FF]', '', raw_addr).strip()
 
                     # Ищем оригинальное название
                     orig_el = page.locator('h1 + div, div[class*="subTitle"], span[class*="local"], h2[class*="sub"]').first
@@ -205,7 +282,7 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                                     orig_name = htext
                                     break
 
-                    # Расширенный поиск картинки-превью в шапке карточки
+                    # Поиск превью
                     for img_sel in [
                         'div[class*="Banner"] img', 
                         'div[class*="gallery"] img', 
@@ -233,7 +310,10 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                     "name": en_name,
                     "original_name": orig_name,
                     "url": detail_url,
-                    "image": img_url,  # Надежно извлеченная ссылка на картинку
+                    "image": img_url,
+                    "lat": lat,
+                    "lon": lon,
+                    "address": address_text,
                     "search_region": region_query,
                     "rating": "-",
                     "rating_comment": "",
@@ -242,8 +322,10 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                     "error": ""
                 }
                 results.append(new_item)
+                
+                coord_mark = f" 📍 [{lat:.4f}, {lon:.4f}]" if lat and lon else ""
                 display_str = f"{en_name} ({orig_name})" if orig_name else en_name
-                print(f"  [{new_item['id']}/{len(raw_attractions)}] Parsed: {display_str}")
+                print(f"  [{new_item['id']}/{len(raw_attractions)}] Parsed: {display_str}{coord_mark}")
 
         except Exception as e:
             print(f"Ошибка при сборе: {e}")

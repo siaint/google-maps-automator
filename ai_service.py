@@ -10,27 +10,23 @@ logger = logging.getLogger("ai_service")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 
-def quick_audit_attraction(place_name: str, region: str = "", original_name: str = "") -> dict:
+def quick_audit_attraction(place_name: str, region: str = "", original_name: str = "", address: str = "") -> dict:
     """
-    Экспресс-аудит спорного объекта с максимальной экономией токенов:
-    - Читает промпт на лету из prompts/audit_prompt.md
-    - thinking_budget = 0 (отключение дорогих токенов рассуждений)
-    - temperature = 0.0 (строгий сухой стиль, минимум лишних слов)
-    - max_output_tokens = 180 (физический потолок на 3-4 предложения)
+    Экспресс-аудит объекта:
+    - Требует наличия файла AUDIT_PROMPT_FILE. Если файла нет — возвращает ошибку.
+    - Учитывает адрес вместо региона для оценки ценности самого места.
     """
     if not AUDIT_PROMPT_FILE.exists():
-        logger.error(f"Файл промпта аудита не найден: {AUDIT_PROMPT_FILE}")
-        audit_instruction = (
-            "Ты — жесткий аудитор туристических объектов Китая. Без воды дай вердикт на 3-4 предложения: "
-            "Личный рейтинг: X.X | Глобальный рейтинг: X.X\n"
-            "Суть: ...\nПлюсы и минусы: ...\nВердикт: ..."
-        )
-    else:
-        with open(AUDIT_PROMPT_FILE, "r", encoding="utf-8") as f:
-            audit_instruction = f.read().strip()
+        err_msg = f"Ошибка: файл промпта аудита {AUDIT_PROMPT_FILE.name} не найден"
+        logger.error(err_msg)
+        return {"personal_rating": 0.0, "global_rating": 0.0, "comment": err_msg}
+
+    with open(AUDIT_PROMPT_FILE, "r", encoding="utf-8") as f:
+        audit_instruction = f.read().strip()
 
     orig_part = f' (оригинальное название: "{original_name}")' if original_name else ''
-    user_query = f'Объект: "{place_name}"{orig_part}, регион поиска: "{region}". Дай экспресс-аудит.'
+    addr_part = f', точный адрес: "{address}"' if address else f', регион: "{region}"'
+    user_query = f'Объект: "{place_name}"{orig_part}{addr_part}. Оценивай ценность самого объекта, не отсеивай за удаленность. Дай экспресс-аудит.'
 
     config = types.GenerateContentConfig(
         system_instruction=audit_instruction,
@@ -73,20 +69,22 @@ def quick_audit_attraction(place_name: str, region: str = "", original_name: str
     }
 
 
-def rate_attraction(place_name: str, region: str = "", original_name: str = "", full_description: bool = False) -> dict:
+def rate_attraction(place_name: str, region: str = "", original_name: str = "", full_description: bool = False, address: str = "") -> dict:
     """
-    Генерирует подробное описание по вашему скиллу (включая жесткий отсев <4.0 и полный шаблон до 3800 символов).
-    Использует gemini-3.8-flash как основную модель.
+    Генерирует подробное описание по вашему скиллу. Требует наличия GUIDE_PROMPT_FILE.
     """
     if not GUIDE_PROMPT_FILE.exists():
-        return {"personal_rating": 0.0, "global_rating": 0.0, "comment": f"Ошибка: файл {GUIDE_PROMPT_FILE.name} не найден"}
+        err_msg = f"Ошибка: файл гайда {GUIDE_PROMPT_FILE.name} не найден"
+        logger.error(err_msg)
+        return {"personal_rating": 0.0, "global_rating": 0.0, "comment": err_msg}
 
     with open(GUIDE_PROMPT_FILE, "r", encoding="utf-8") as f:
         skill_instruction = f.read().strip()
 
     orig_part = f' (оригинальное название: "{original_name}")' if original_name else ''
+    addr_part = f', локация/адрес: "{address}"' if address else f', регион: "{region}"'
     mode_str = "Режим: Полное подробное описание (шаблон до 3800 символов)" if full_description else "Режим: Оценка и первичное описание по шкале интереса"
-    user_query = f'Объект: "{place_name}"{orig_part} (регион: "{region}"). {mode_str}'
+    user_query = f'Объект: "{place_name}"{orig_part}{addr_part}. Не занижай оценку из-за удаленности или логистики. {mode_str}'
 
     config = types.GenerateContentConfig(
         system_instruction=skill_instruction,
@@ -130,21 +128,33 @@ def rate_attraction(place_name: str, region: str = "", original_name: str = "", 
     personal_rating = 0.0
     global_rating = 0.0
     
-    for line in text_resp.split('\n'):
-        if "Личный рейтинг" in line or "PERSONAL_RATING" in line:
-            nums = re.findall(r'\d+\.\d+|\d+', line)
-            if nums:
-                try:
-                    personal_rating = float(nums[0])
-                except:
-                    pass
-        elif "Глобальный рейтинг" in line or "GLOBAL_RATING" in line:
-            nums = re.findall(r'\d+\.\d+|\d+', line)
-            if nums:
-                try:
-                    global_rating = float(nums[0])
-                except:
-                    pass
+    # 1. Ищем строго по шаблону "Личный рейтинг:" (или Personal) с последующим числом
+    m_pr = re.search(r'(?:личн\w*|personal)[^\d\n]*?(\d+\.\d+|\d+)', text_resp, re.IGNORECASE)
+    if m_pr:
+        try:
+            personal_rating = float(m_pr.group(1))
+        except:
+            pass
+
+    # 2. Ищем строго по шаблону "Глобальный рейтинг:" (или Global) с последующим числом
+    m_gr = re.search(r'(?:глобал\w*|global)[^\d\n]*?(\d+\.\d+|\d+)', text_resp, re.IGNORECASE)
+    if m_gr:
+        try:
+            global_rating = float(m_gr.group(1))
+        except:
+            pass
+
+    # 3. Если первый способ не сработал, ищем внутри секции **Рейтинг:**
+    if personal_rating == 0.0 or global_rating == 0.0:
+        rating_section_match = re.search(r'\*\*Рейтинг:\*\*(.*?)(?=\*\*Полезная|\Z)', text_resp, re.DOTALL | re.IGNORECASE)
+        if rating_section_match:
+            sec_text = rating_section_match.group(1)
+            found_nums = re.findall(r'(\d+\.\d+|\d+)', sec_text)
+            if found_nums:
+                if personal_rating == 0.0 and len(found_nums) > 0:
+                    personal_rating = float(found_nums[0])
+                if global_rating == 0.0 and len(found_nums) > 1:
+                    global_rating = float(found_nums[1])
 
     return {
         "personal_rating": personal_rating,
@@ -199,26 +209,23 @@ def verify_place_match(query: str, card_title: str, card_context: str, status_cb
 
 def rate_attractions_batch(places: list[dict]) -> list[dict]:
     """
-    Пакетная блиц-оценка списка объектов в ультракомпактном формате (массив массивов) для экономии токенов.
+    Пакетная блиц-оценка списка объектов.
     """
     if not places:
         return []
     
     items_input = []
     for p in places:
-        items_input.append({
+        item_entry = {
             "name": p.get("name"),
             "original_name": p.get("original_name", ""),
-            "region": p.get("search_region", "")
-        })
+            "address": p.get("address", "") or p.get("search_region", "")
+        }
+        items_input.append(item_entry)
 
     prompt = f"""
-Ты — жесткий туристический аудитор автопутешествий. Оцени объекты Китая от 1.0 до 10.0 (10 — мировой феномен, 7.0-8.9 — ключевые природные/исторические доминанты, 6.0-6.9 — стоящее наполнение дня, 4.0-5.9 — слабый проходняк, <4.0 — шлак/ловушка).
-
-Критерии:
-+ В плюс: горы/скалы/обрывы, подлинная древность 600+ лет, крепости/стены, масштабные каньоны/пустыни, крупные топ-музеи.
-- В минус: коммерция, агропарки, покатушки, мелкие храмы, городские парки/площади, части других комплексов.
-! Жесткий отсев (<5.0): кемпинги/глэмпинги, отели, турбазы отдыха (Resort/Camp), питомники/зооуголки, плоские поля/степи без рельефа.
+Ты — жесткий туристический аудитор автопутешествий. Оцени объекты от 1.0 до 10.0 (10 — мировой феномен, 7.0-8.9 — ключевые доминанты, 6.0-6.9 — стоящее наполнение дня, 4.0-5.9 — проходняк, <4.0 — ловушка).
+ВАЖНО: Оценивай объективную историческую/туристическую ценность самого места. Не занижай оценку из-за удаленности или сложной логистики (пользователь сам решает, ехать ли туда).
 
 Формат: строго JSON-массив массивов без разметки markdown и пояснений:
 [["Имя из списка", 6.5, "краткая суть до 8 слов"]]
