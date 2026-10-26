@@ -129,10 +129,17 @@ class MapsAutomator:
             return False, "Не удалось определить заголовок карточки"
 
         g_lat, g_lon = 0.0, 0.0
-        match_coords = re.search(r'@([0-9]+\.[0-9]+),([0-9]+\.[0-9]+)', self.page.url)
+        # 1. Сначала ищем классический паттерн с @
+        match_coords = re.search(r'@([0-9.-]+),([0-9.-]+)', self.page.url)
         if match_coords:
             g_lat = float(match_coords.group(1))
             g_lon = float(match_coords.group(2))
+        else:
+            # 2. Если его нет, ищем внутренние параметры координат Google Maps (!3d и !4d)
+            match_3d4d = re.search(r'!3d([0-9.-]+)!4d([0-9.-]+)', self.page.url)
+            if match_3d4d:
+                g_lat = float(match_3d4d.group(1))
+                g_lon = float(match_3d4d.group(2))
 
         dist = 0.0
         if lat and lon and g_lat and g_lon:
@@ -197,10 +204,10 @@ class MapsAutomator:
                 return False, "Прервано пользователем"
 
             page = self.page
+            encoded_base_query = urllib.parse.quote(full_query)
 
             report(f"1/7: Поиск на карте: '{full_query}'...")
-            encoded = urllib.parse.quote(full_query)
-            page.goto(f"https://www.google.com/maps/search/{encoded}?hl=ru", wait_until="commit", timeout=30000)
+            page.goto(f"https://www.google.com/maps/search/{encoded_base_query}?hl=ru", wait_until="commit", timeout=30000)
             
             if self._wait_cancelled(3000):
                 return False, "Прервано пользователем"
@@ -210,23 +217,22 @@ class MapsAutomator:
             last_error = "Объект не найден"
 
             if feed.is_visible(timeout=2500):
-                report("2/7: Обнаружен список выдачи. Умный анализ и ранжирование карточек...")
+                report("2/7: Обнаружен список выдачи. Сканирование карточек-кандидатов...")
                 
-                card_elements = page.locator('div[role="feed"] div.UaQhfb, div[role="feed"] div.i0jCxf').all()
-                if not card_elements:
-                    links = page.locator('div[role="feed"] a.hfpxzc').all()
-                    if not links:
-                        return False, "Объект не найден на картах (пустая выдача)"
-                    card_elements = [l.locator("xpath=ancestor::div[contains(@class, 'bfdHYd')][1]") for l in links]
+                link_locators = page.locator('div[role="feed"] a.hfpxzc').all()
+                if not link_locators:
+                    return False, "Объект не найден на картах (пустая выдача)"
 
-                candidates = []
-                for idx, card_el in enumerate(card_elements[:5]):
+                candidates_meta = []
+                for idx, link in enumerate(link_locators[:5]):
                     try:
-                        text_content = card_el.inner_text()
+                        href = link.get_attribute("href")
+                        card_block = link.locator("xpath=ancestor::div[contains(@class, 'bfdHYd') or contains(@class, 'i0jCxf')][1]")
+                        text_content = card_block.inner_text() if card_block.count() > 0 else link.inner_text()
+                        
                         card_lines = [line.strip() for line in text_content.split("\n") if line.strip()]
                         card_title_candidate = card_lines[0] if card_lines else ""
 
-                        # 1. Текстовое сходство названия
                         name_to_check = place_name.lower()
                         orig_to_check = original_name.lower() if original_name else ""
                         cand_lower = card_title_candidate.lower()
@@ -238,7 +244,6 @@ class MapsAutomator:
                         if name_to_check in cand_lower or cand_lower in name_to_check:
                             name_match_score = max(name_match_score, 85.0)
 
-                        # 2. Рейтинг и отзывы
                         rating_match = re.search(r'([0-9],[0-9]|[0-9]\.[0-9])\s*\(([0-9]+)\)', text_content)
                         rating = float(rating_match.group(1).replace(',', '.')) if rating_match else 0.0
                         reviews_count = int(rating_match.group(2)) if rating_match else 0
@@ -246,51 +251,38 @@ class MapsAutomator:
                         has_phone = "+" in text_content
                         has_reviews = "отзыв" in text_content.lower() or reviews_count > 0
 
-                        # 3. Бонусы за качество и штрафы за пустоту
                         quality_bonus = (min(reviews_count, 50) * 0.5) + (rating * 3) + (25 if has_phone else 0) + (15 if has_reviews else 0)
                         if not has_reviews and rating == 0.0 and not has_phone:
                             quality_bonus -= 20.0
 
                         weight = name_match_score + quality_bonus
 
-                        candidates.append({
+                        candidates_meta.append({
                             "index": idx,
+                            "href": href,
                             "weight": weight,
                             "text": text_content.replace("\n", " | ")[:100]
                         })
                     except Exception:
-                        candidates.append({
-                            "index": idx,
-                            "weight": 0.0,
-                            "text": f"Вариант #{idx+1}"
-                        })
+                        continue
 
-                # Сортируем: сначала с подходящим названием и хорошей наполненностью
-                candidates.sort(key=lambda x: x["weight"], reverse=True)
-                report(f"Найдено вариантов: {len(candidates)}. Проверяем по приоритету...")
+                candidates_meta.sort(key=lambda x: x["weight"], reverse=True)
+                report(f"Собрано кандидатов: {len(candidates_meta)}. Проверяем по порядку...")
 
-                for cand in candidates:
+                for cand in candidates_meta:
                     if self.is_cancelled:
                         return False, "Прервано пользователем"
-                    
-                    real_idx = cand["index"]
-                    report(f"Проверка варианта (вес: {cand['weight']:.1f}): {cand['text']}...")
-                    
-                    current_links = page.locator('div[role="feed"] a.hfpxzc').all()
-                    if not current_links or real_idx >= len(current_links):
-                        all_blocks = page.locator('div[role="feed"] div.bfdHYd').all()
-                        if real_idx < len(all_blocks):
-                            target_link = all_blocks[real_idx].locator('a.hfpxzc').first
+
+                    report(f"Проверка кандидата (вес: {cand['weight']:.1f}): {cand['text']}...")
+
+                    if cand["href"]:
+                        page.goto(cand["href"], wait_until="commit", timeout=20000)
+                    else:
+                        fresh_links = page.locator('div[role="feed"] a.hfpxzc').all()
+                        if cand["index"] < len(fresh_links):
+                            fresh_links[cand["index"]].click(force=True)
                         else:
                             continue
-                    else:
-                        target_link = current_links[real_idx]
-
-                    try:
-                        target_link.click(force=True)
-                    except Exception as e:
-                        last_error = f"Ошибка клика: {e}"
-                        continue
 
                     if self._wait_cancelled(2000):
                         return False, "Прервано пользователем"
@@ -303,9 +295,9 @@ class MapsAutomator:
                         is_valid_match = True
                         break
                     else:
-                        report(f"Вариант отклонен: {reason}. Возврат к списку...")
+                        report(f"Вариант отклонен: {reason}. Переходим к следующему...")
                         last_error = reason
-                        page.go_back()
+                        page.goto(f"https://www.google.com/maps/search/{encoded_base_query}?hl=ru", wait_until="commit", timeout=20000)
                         if self._wait_cancelled(1500):
                             return False, "Прервано пользователем"
 
