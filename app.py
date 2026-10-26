@@ -42,42 +42,72 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS evaluated_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            original_name TEXT,
-            search_region TEXT,
-            url TEXT,
-            image TEXT,
-            lat REAL DEFAULT 0.0,
-            lon REAL DEFAULT 0.0,
-            address TEXT DEFAULT '',
-            rating TEXT DEFAULT '-',
-            personal_rating REAL DEFAULT 0.0,
-            global_rating REAL DEFAULT 0.0,
-            rating_comment TEXT DEFAULT '',
-            list_name TEXT DEFAULT 'Хочу посетить',
-            imported_list TEXT DEFAULT '',
-            archived INTEGER DEFAULT 0,
-            hidden INTEGER DEFAULT 0
-        )
-    ''')
+    # Проверяем, существует ли старая таблица
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='evaluated_items'")
+    table_exists = cursor.fetchone()
+    
+    if table_exists:
+        cursor.execute("PRAGMA table_info(evaluated_items)")
+        columns = [col[1] for col in cursor.fetchall()]
+        
+        if "hidden" not in columns or "address" not in columns:
+            cursor.execute("ALTER TABLE evaluated_items RENAME TO evaluated_items_old")
+            
+            cursor.execute('''
+                CREATE TABLE evaluated_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    original_name TEXT,
+                    search_region TEXT,
+                    url TEXT,
+                    image TEXT,
+                    lat REAL DEFAULT 0.0,
+                    lon REAL DEFAULT 0.0,
+                    address TEXT DEFAULT '',
+                    rating TEXT DEFAULT '-',
+                    personal_rating REAL DEFAULT 0.0,
+                    global_rating REAL DEFAULT 0.0,
+                    rating_comment TEXT DEFAULT '',
+                    list_name TEXT DEFAULT 'Хочу посетить',
+                    imported_list TEXT DEFAULT '',
+                    hidden INTEGER DEFAULT 0
+                )
+            ''')
+            
+            cursor.execute('''
+                INSERT INTO evaluated_items (id, name, original_name, search_region, url, image, rating, personal_rating, global_rating, rating_comment, list_name, imported_list)
+                SELECT id, name, original_name, search_region, url, image, rating, personal_rating, global_rating, rating_comment, list_name, imported_list 
+                FROM evaluated_items_old
+            ''')
+            cursor.execute("DROP TABLE evaluated_items_old")
+    else:
+        cursor.execute('''
+            CREATE TABLE evaluated_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                original_name TEXT,
+                search_region TEXT,
+                url TEXT,
+                image TEXT,
+                lat REAL DEFAULT 0.0,
+                lon REAL DEFAULT 0.0,
+                address TEXT DEFAULT '',
+                rating TEXT DEFAULT '-',
+                personal_rating REAL DEFAULT 0.0,
+                global_rating REAL DEFAULT 0.0,
+                rating_comment TEXT DEFAULT '',
+                list_name TEXT DEFAULT 'Хочу посетить',
+                imported_list TEXT DEFAULT '',
+                hidden INTEGER DEFAULT 0
+            )
+        ''')
 
-    cursor.execute("PRAGMA table_info(evaluated_items)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if "archived" not in columns:
-        cursor.execute("ALTER TABLE evaluated_items ADD COLUMN archived INTEGER DEFAULT 0")
-    if "hidden" not in columns:
-        cursor.execute("ALTER TABLE evaluated_items ADD COLUMN hidden INTEGER DEFAULT 0")
-    if "lat" not in columns:
-        cursor.execute("ALTER TABLE evaluated_items ADD COLUMN lat REAL DEFAULT 0.0")
-    if "lon" not in columns:
-        cursor.execute("ALTER TABLE evaluated_items ADD COLUMN lon REAL DEFAULT 0.0")
-    if "address" not in columns:
-        cursor.execute("ALTER TABLE evaluated_items ADD COLUMN address TEXT DEFAULT ''")
-
+    # Сбрасываем только разрешенные ручные индексы
     cursor.execute("DROP INDEX IF EXISTS idx_evaluated_orig_name")
+    cursor.execute("DROP INDEX IF EXISTS idx_evaluated_name_region")
+    
+    # Создаем чистый уникальный индекс по имени и адресу
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_evaluated_name_address ON evaluated_items (name, address) WHERE address != ''")
         
     conn.commit()
     conn.close()
@@ -152,44 +182,39 @@ def get_scraped():
 
 @app.post("/api/scrape/trip")
 async def scrape_trip(region: str = Form(...), limit: int = Form(300), list_name: str = Form("Хочу посетить")):
-    import asyncio
+    import threading
     global trip_cancelled, scraped_cache
+
+    if trip_cancelled is False and any(t.is_alive() for t in threading.enumerate() if "_run_trip_scraping" in t.name):
+        return JSONResponse({"status": "error", "message": "Сбор уже выполняется"}, status_code=400)
 
     trip_cancelled = False
     log_buffer.clear()
-    collected_data = []
 
     def is_cancelled():
         return trip_cancelled
 
     def _run_trip_scraping():
-        nonlocal collected_data
+        global scraped_cache
         old_stdout = sys.stdout
         sys.stdout = log_buffer
         try:
             collected_data = scrape_trip_attractions(region, list_name=list_name, limit=limit, stop_callback=is_cancelled)
-            return True, None
+            scraped_cache = collected_data
+            save_json_file(SCRAPED_FILE, scraped_cache)
+            print(f"\nВсего успешно обработано: {len(scraped_cache)} объектов.")
         except Exception as e:
             print(f"\n[ERROR] {e}")
-            return False, str(e)
         finally:
             sys.stdout = old_stdout
 
-    loop = asyncio.get_running_loop()
-    success, error_message = await loop.run_in_executor(executor, _run_trip_scraping)
+    thread = threading.Thread(target=_run_trip_scraping, name="_run_trip_scraping")
+    thread.start()
 
-    if success:
-        scraped_cache = collected_data
-        save_json_file(SCRAPED_FILE, scraped_cache)
-        return JSONResponse({
-            "status": "success",
-            "count": len(scraped_cache),
-            "cancelled": trip_cancelled,
-            "items": scraped_cache
-        })
-    else:
-        return JSONResponse({"status": "error", "message": error_message}, status_code=500)
-
+    return JSONResponse({
+        "status": "started",
+        "message": "Сбор запущен в фоне"
+    })
 
 @app.post("/api/scrape/trip/stop")
 async def stop_trip_scrape():
@@ -237,9 +262,7 @@ async def transfer_to_evaluated(request: Request):
     cursor = conn.cursor()
     
     if clear_existing:
-        cursor.execute("UPDATE evaluated_items SET archived = 1 WHERE archived = 0")
-
-    cursor.execute("UPDATE evaluated_items SET hidden = 0")
+        cursor.execute("UPDATE evaluated_items SET hidden = 1 WHERE hidden = 0")
     
     added_count = 0
     duplicate_count = 0
@@ -260,11 +283,11 @@ async def transfer_to_evaluated(request: Request):
         
         candidates = []
         if orig_name:
-            cursor.execute("SELECT id, search_region, lat, lon, address FROM evaluated_items WHERE archived = 0 AND LOWER(TRIM(original_name)) = LOWER(?)", (orig_name,))
+            cursor.execute("SELECT id, search_region, lat, lon, address FROM evaluated_items WHERE LOWER(TRIM(original_name)) = LOWER(?)", (orig_name,))
             candidates = cursor.fetchall()
         
         if not candidates and raw_name:
-            cursor.execute("SELECT id, search_region, lat, lon, address FROM evaluated_items WHERE archived = 0 AND LOWER(TRIM(name)) = LOWER(?)", (raw_name,))
+            cursor.execute("SELECT id, search_region, lat, lon, address FROM evaluated_items WHERE LOWER(TRIM(name)) = LOWER(?)", (raw_name,))
             candidates = cursor.fetchall()
 
         matched_existing = None
@@ -274,7 +297,7 @@ async def transfer_to_evaluated(request: Request):
 
             if item_lat and item_lon and c_lat and c_lon:
                 dist = haversine_distance(item_lat, item_lon, c_lat, c_lon)
-                if dist <= 10.0:
+                if dist <= 15.0:
                     matched_existing = cand
                     break
             else:
@@ -282,11 +305,14 @@ async def transfer_to_evaluated(request: Request):
                 break
         
         if not matched_existing:
-            cursor.execute('''
-                INSERT INTO evaluated_items (name, original_name, search_region, url, image, lat, lon, address, list_name, archived, hidden)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
-            ''', (raw_name, orig_name, search_reg, item_url, item_img, item_lat, item_lon, item_addr, raw_list))
-            added_count += 1
+            try:
+                cursor.execute('''
+                    INSERT INTO evaluated_items (name, original_name, search_region, url, image, lat, lon, address, list_name, hidden)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                ''', (raw_name, orig_name, search_reg, item_url, item_img, item_lat, item_lon, item_addr, raw_list))
+                added_count += 1
+            except sqlite3.IntegrityError:
+                duplicate_count += 1
         else:
             existing_regions = [r.strip() for r in (matched_existing["search_region"] or "").split(",") if r.strip()]
             if search_reg and search_reg not in existing_regions:
@@ -302,14 +328,13 @@ async def transfer_to_evaluated(request: Request):
                     lon = CASE WHEN lon = 0.0 THEN ? ELSE lon END,
                     address = COALESCE(NULLIF(?, ''), address),
                     search_region = ?,
-                    archived = 0,
                     hidden = 0
                 WHERE id = ?
             ''', (item_url, item_img, orig_name, item_lat, item_lon, item_addr, merged_regions, matched_existing["id"]))
             duplicate_count += 1
 
     conn.commit()
-    cursor.execute("SELECT COUNT(*) FROM evaluated_items WHERE archived = 0")
+    cursor.execute("SELECT COUNT(*) FROM evaluated_items WHERE hidden = 0")
     total_count = cursor.fetchone()[0]
     conn.close()
     
@@ -328,11 +353,28 @@ def get_evaluated():
     cursor = conn.cursor()
     cursor.execute("""
         SELECT id, name, original_name, search_region, url, image, lat, lon, address,
-               rating, personal_rating, global_rating, list_name, imported_list, archived, hidden, rating_comment 
-        FROM evaluated_items WHERE archived = 0 ORDER BY id DESC
+               rating, personal_rating, global_rating, list_name, imported_list, hidden, rating_comment 
+        FROM evaluated_items WHERE hidden = 0 ORDER BY id ASC
     """)
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
+
+    places = load_json_file(PLACES_FILE)
+    queued_keys = set()
+    for p in places:
+        oname = (p.get("original_name") or "").strip().lower()
+        rname = (p.get("name") or "").strip().lower()
+        if oname: queued_keys.add(oname)
+        if rname: queued_keys.add(rname)
+
+    for item in rows:
+        oname = (item.get("original_name") or "").strip().lower()
+        rname = (item.get("name") or "").strip().lower()
+        is_q = False
+        if oname and oname in queued_keys: is_q = True
+        elif rname and rname in queued_keys: is_q = True
+        item["is_queued"] = is_q
+
     return JSONResponse(rows)
 
 
@@ -362,11 +404,29 @@ def get_evaluated_item(item_id: int):
     conn.close()
     if not row:
         return JSONResponse({"status": "error", "message": "Объект не найден"}, status_code=404)
-    return JSONResponse(dict(row))
+    
+    item = dict(row)
+    places = load_json_file(PLACES_FILE)
+    queued_keys = set()
+    for p in places:
+        oname = (p.get("original_name") or "").strip().lower()
+        rname = (p.get("name") or "").strip().lower()
+        if oname: queued_keys.add(oname)
+        if rname: queued_keys.add(rname)
+
+    oname = (item.get("original_name") or "").strip().lower()
+    rname = (item.get("name") or "").strip().lower()
+    is_q = False
+    if oname and oname in queued_keys: is_q = True
+    elif rname and rname in queued_keys: is_q = True
+    item["is_queued"] = is_q
+
+    return JSONResponse(item)
 
 
 @app.post("/api/evaluated/{item_id}/update")
 async def update_evaluated_item(item_id: int, request: Request):
+    global places_cache
     try:
         body = await request.json()
         list_name = body.get("list_name")
@@ -375,16 +435,30 @@ async def update_evaluated_item(item_id: int, request: Request):
         return JSONResponse({"status": "error", "message": "Некорректный JSON"}, status_code=400)
 
     conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+
+    # Сначала получаем актуальные данные объекта, включая текущий рейтинг
+    cursor.execute("SELECT * FROM evaluated_items WHERE id = ?", (item_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return JSONResponse({"status": "error", "message": "Объект не найден"}, status_code=404)
+    
+    item = dict(row)
+    orig_name = (item.get("original_name") or "").strip().lower()
+    r_name = (item.get("name") or "").strip().lower()
 
     updates = []
     params = []
     if list_name is not None:
         updates.append("list_name = ?")
         params.append(list_name.strip())
+        item["list_name"] = list_name.strip()
     if rating_comment is not None:
         updates.append("rating_comment = ?")
         params.append(rating_comment.strip())
+        item["rating_comment"] = rating_comment.strip()
 
     if updates:
         params.append(item_id)
@@ -392,12 +466,62 @@ async def update_evaluated_item(item_id: int, request: Request):
         conn.commit()
 
     conn.close()
+
+    # Синхронизируем изменения в очереди на третьей вкладке (places.json), если объект там есть
+    updated_in_places = False
+    for p in places_cache:
+        p_oname = (p.get("original_name") or "").strip().lower()
+        p_rname = (p.get("name") or "").strip().lower()
+        
+        match = False
+        if orig_name and p_oname and orig_name == p_oname:
+            match = True
+        elif r_name and p_rname and r_name == p_rname:
+            match = True
+
+        if match:
+            if list_name is not None:
+                p["list_name"] = item["list_name"]
+            if rating_comment is not None:
+                p["rating_comment"] = item["rating_comment"]
+            # Также подтягиваем актуальный рейтинг, если он изменился
+            if item.get("rating"):
+                p["rating"] = item["rating"]
+            updated_in_places = True
+
+    if updated_in_places:
+        save_json_file(PLACES_FILE, places_cache)
+
+    return JSONResponse({"status": "success", "id": item_id})
+
+
+@app.post("/api/places/{item_id}/update")
+async def update_place_item(item_id: int, request: Request):
+    global places_cache
+    try:
+        body = await request.json()
+        list_name = body.get("list_name")
+        search_query = body.get("search_query")
+    except Exception:
+        return JSONResponse({"status": "error", "message": "Некорректный JSON"}, status_code=400)
+
+    target = next((x for x in places_cache if x["id"] == item_id), None)
+    if not target:
+        return JSONResponse({"status": "error", "message": "Объект в очереди не найден"}, status_code=404)
+
+    if list_name is not None:
+        target["list_name"] = list_name.strip()
+    if search_query is not None:
+        target["search_query"] = search_query.strip()
+
+    save_json_file(PLACES_FILE, places_cache)
     return JSONResponse({"status": "success", "id": item_id})
 
 
 @app.post("/api/ai/rate_place")
 async def rate_place_endpoint(request: Request):
     import asyncio
+    global places_cache
     try:
         body = await request.json()
         item_id = body.get("id")
@@ -421,11 +545,27 @@ async def rate_place_endpoint(request: Request):
         conn.close()
 
     loop = asyncio.get_running_loop()
-    # Передаем адрес в качестве основного локационного контекста вместо региона
+    print(f"\n[AI DEBUG] Отправка в ИИ -> Объект: {place_name}, Адрес: {address}")
     if full_desc:
         res = await loop.run_in_executor(executor, ai_service.rate_attraction, place_name, address, original_name, True, address)
     else:
         res = await loop.run_in_executor(executor, ai_service.quick_audit_attraction, place_name, address, original_name, address)
+
+    # Надежно извлекаем рейтинг из ответа ИИ
+    rating_val = res.get("personal_rating")
+    if not rating_val or rating_val == 0.0:
+        # Пытаемся вытащить из текста комментария, если в поле rating ничего нет
+        import re
+        comment_text = res.get("comment", "")
+        match = re.search(r'\*\*Рейтинг:\s*([\d.]+)\*\*', comment_text, re.IGNORECASE)
+        if match:
+            try:
+                rating_val = float(match.group(1))
+            except ValueError:
+                pass
+
+    new_rating = str(rating_val if rating_val else "-")
+    new_comment = res.get("comment", "")
 
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -434,18 +574,37 @@ async def rate_place_endpoint(request: Request):
             UPDATE evaluated_items 
             SET rating = ?, personal_rating = ?, global_rating = ?, rating_comment = ?
             WHERE id = ?
-        ''', (str(res.get("personal_rating", 0.0)), res.get("personal_rating", 0.0), res.get("global_rating", 0.0), res.get("comment", ""), item_id))
+        ''', (new_rating, res.get("personal_rating", 0.0), res.get("global_rating", 0.0), new_comment, item_id))
     else:
         cursor.execute('''
             UPDATE evaluated_items 
             SET rating = ?, personal_rating = ?, global_rating = ?, rating_comment = ?
             WHERE LOWER(name) = LOWER(?)
-        ''', (str(res.get("personal_rating", 0.0)), res.get("personal_rating", 0.0), res.get("global_rating", 0.0), res.get("comment", ""), place_name))
+        ''', (new_rating, res.get("personal_rating", 0.0), res.get("global_rating", 0.0), new_comment, place_name))
     conn.commit()
     conn.close()
 
-    return JSONResponse({"status": "success", "result": res})
+    # Синхронизируем новый рейтинг и комментарий (гайд) с очередью импорта на третьей вкладке
+    updated_in_places = False
+    for p in places_cache:
+        p_oname = (p.get("original_name") or "").strip().lower()
+        p_rname = (p.get("name") or "").strip().lower()
+        
+        match = False
+        if original_name and p_oname and original_name.lower() == p_oname:
+            match = True
+        elif place_name and p_rname and place_name.lower() == p_rname:
+            match = True
 
+        if match:
+            p["rating"] = new_rating
+            p["rating_comment"] = new_comment
+            updated_in_places = True
+
+    if updated_in_places:
+        save_json_file(PLACES_FILE, places_cache)
+
+    return JSONResponse({"status": "success", "result": res})
 
 @app.post("/api/ai/batch_rate_blitz")
 async def batch_rate_blitz(request: Request):
@@ -462,9 +621,9 @@ async def batch_rate_blitz(request: Request):
     
     if item_ids:
         placeholders = ','.join(['?'] * len(item_ids))
-        cursor.execute(f"SELECT id, name, original_name, search_region, address FROM evaluated_items WHERE id IN ({placeholders}) AND (rating = '-' OR rating IS NULL) AND archived = 0", item_ids)
+        cursor.execute(f"SELECT id, name, original_name, search_region, address FROM evaluated_items WHERE id IN ({placeholders}) AND (rating = '-' OR rating IS NULL) AND hidden = 0", item_ids)
     else:
-        cursor.execute("SELECT id, name, original_name, search_region, address FROM evaluated_items WHERE (rating = '-' OR rating IS NULL) AND archived = 0")
+        cursor.execute("SELECT id, name, original_name, search_region, address FROM evaluated_items WHERE (rating = '-' OR rating IS NULL) AND hidden = 0")
         
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
@@ -491,7 +650,7 @@ async def batch_rate_blitz(request: Request):
                 cursor.execute('''
                     UPDATE evaluated_items 
                     SET rating = ?, personal_rating = ?, global_rating = ?, rating_comment = ?
-                    WHERE LOWER(name) = LOWER(?) AND archived = 0
+                    WHERE LOWER(name) = LOWER(?) AND hidden = 0
                 ''', (str(r_score), float(r_score), float(r_score), f"Блиц-оценка: {r_reason}", r_name))
                 processed_count += 1
             conn.commit()
@@ -504,17 +663,17 @@ async def batch_rate_blitz(request: Request):
 def delete_evaluated_item(item_id: int):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("UPDATE evaluated_items SET archived = 1 WHERE id = ?", (item_id,))
+    cursor.execute("UPDATE evaluated_items SET hidden = 1 WHERE id = ?", (item_id,))
     conn.commit()
     conn.close()
-    return JSONResponse({"status": "archived", "id": item_id})
+    return JSONResponse({"status": "hidden", "id": item_id})
 
 
 @app.delete("/api/evaluated")
 def clear_evaluated():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("UPDATE evaluated_items SET archived = 1 WHERE imported_list != '' AND imported_list IS NOT NULL")
+    cursor.execute("UPDATE evaluated_items SET hidden = 1 WHERE imported_list != '' AND imported_list IS NOT NULL")
     conn.commit()
     conn.close()
     return JSONResponse({"status": "screen_cleared"})
@@ -555,15 +714,13 @@ async def transfer_to_places(request: Request):
         
         if not raw_name and not orig_name:
             continue
-        
-        cursor.execute("SELECT imported_list FROM evaluated_items WHERE id = ?", (item.get("id"),))
-        row = cursor.fetchone()
-        existing_lists = [l.strip() for l in (row[0] or "").split(",") if l.strip()] if row else []
-        if raw_list and raw_list not in existing_lists:
-            existing_lists.append(raw_list)
-        merged_lists = ", ".join(existing_lists)
 
-        cursor.execute("UPDATE evaluated_items SET imported_list = ? WHERE id = ?", (merged_lists, item.get("id")))
+        q_parts = []
+        if orig_name:
+            q_parts.append(orig_name)
+        if raw_name:
+            q_parts.append(raw_name)
+        initial_search_query = " ".join(q_parts)
 
         item_key = f"{orig_name.lower()}_{item_lat:.2f}" if (orig_name and item_lat) else (orig_name.lower() if orig_name else raw_name.lower())
         if item_key not in existing_keys:
@@ -579,7 +736,9 @@ async def transfer_to_places(request: Request):
                 "search_region": search_reg,
                 "rating": item.get("rating", "-"),
                 "rating_comment": guide_text,
+                "imported_list": "",
                 "list_name": raw_list,
+                "search_query": initial_search_query,
                 "status": "В очереди",
                 "error": ""
             })
@@ -613,10 +772,20 @@ def _sync_process(item_id: int):
         target["status"] = step_name
         target["error"] = ""
 
-    success, message = automator.process_item(target, status_cb=update_step)
+    list_name = (target.get("list_name") or "Хочу посетить").strip()
+    existing_lists = [l.strip() for l in (target.get("imported_list") or "").split(",") if l.strip()]
+    if list_name and list_name not in existing_lists:
+        existing_lists.append(list_name)
+        target["imported_list"] = ", ".join(existing_lists)
 
+    success, message = automator.process_item(target, status_cb=update_step)
+    print(f"\n[MAPS DEBUG] Передача в MapsAutomator -> Название: {target.get('name')}, Поисковый запрос: {target.get('search_query')}, Адрес: {target.get('address')}, Координаты: ({target.get('lat')}, {target.get('lon')})")
+    
     if success:
-        target["status"] = "Готово"
+        if "уже есть" in message.lower():
+            target["status"] = "Уже есть"
+        else:
+            target["status"] = "Готово"
         target["error"] = ""
     else:
         if automator.is_cancelled or message == "Прервано пользователем":
@@ -625,6 +794,20 @@ def _sync_process(item_id: int):
         else:
             target["status"] = "Ошибка"
             target["error"] = message
+
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        orig_name = target.get("original_name", "").strip()
+        r_name = target.get("name", "").strip()
+        if orig_name:
+            cursor.execute("UPDATE evaluated_items SET imported_list = ? WHERE LOWER(TRIM(original_name)) = LOWER(?)", (target["imported_list"], orig_name))
+        elif r_name:
+            cursor.execute("UPDATE evaluated_items SET imported_list = ? WHERE LOWER(TRIM(name)) = LOWER(?)", (target["imported_list"], r_name))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
     
     save_json_file(PLACES_FILE, places_cache)
 
@@ -638,7 +821,7 @@ async def process_one(item_id: int):
     target = next((x for x in places_cache if x["id"] == item_id), None)
     if not target:
         return JSONResponse({"status": "not_found", "id": item_id})
-    return JSONResponse({"status": "success" if target.get("status") == "Готово" else "failed", "message": target.get("error", ""), "id": item_id})
+    return JSONResponse({"status": "success" if target.get("status") in ["Готово", "Уже есть"] else "failed", "message": target.get("error", ""), "id": item_id})
 
 
 @app.post("/api/stop")
@@ -646,7 +829,7 @@ async def stop_process():
     global places_cache
     automator.cancel()
     for item in places_cache:
-        if item.get("status") not in ["В очереди", "Готово", "Ошибка", "Отменено"]:
+        if item.get("status") not in ["В очереди", "Готово", "Уже есть", "Ошибка", "Отменено"]:
             item["status"] = "Отменено"
             item["error"] = "Прервано пользователем"
     save_json_file(PLACES_FILE, places_cache)
@@ -689,7 +872,7 @@ def reject_evaluated_item(item_id: int):
                 
             cursor.execute("""
                 UPDATE evaluated_items 
-                SET rating_comment = ? 
+                SET rating_comment = ?, imported_list = '' 
                 WHERE id = ?
             """, (new_comment, item_id))
             conn.commit()
@@ -700,4 +883,4 @@ def reject_evaluated_item(item_id: int):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=False)
+    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=False, timeout_keep_alive=120)

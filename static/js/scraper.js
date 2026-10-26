@@ -1,66 +1,58 @@
-let scrapedItems = [];
-let logPollTimer = null;
-
-function showScraperStatus(text, type = 'info') {
-    const box = document.getElementById('scraperStatus');
-    box.className = `status-message ${type}`;
-    box.innerText = text;
-    box.style.display = 'block';
-}
+let currentScrapedItems = [];
 
 async function loadScrapedData() {
-    const res = await fetch('/api/scraped');
-    scrapedItems = await res.json();
-    renderScrapedTable(scrapedItems);
+    try {
+        let res = await fetch('/api/scraped');
+        let data = await res.json();
+        currentScrapedItems = data;
+        renderScrapedTable(data);
+    } catch (e) {
+        console.error("Ошибка загрузки собранных объектов:", e);
+    }
 }
 
 function renderScrapedTable(items) {
-    scrapedItems = items;
-    const tbody = document.getElementById('scraperTableBody');
-    const previewBlock = document.getElementById('previewBlock');
-    const counter = document.getElementById('previewCount');
-    
-    tbody.innerHTML = '';
-    counter.innerText = items.length;
+    let tbody = document.getElementById("scraperTableBody");
+    let previewBlock = document.getElementById("previewBlock");
+    let previewCount = document.getElementById("previewCount");
 
-    if (items.length === 0) {
-        previewBlock.style.display = 'none';
+    if (!items || items.length === 0) {
+        previewBlock.style.display = "none";
         return;
     }
 
-    previewBlock.style.display = 'block';
+    previewBlock.style.display = "block";
+    previewCount.textContent = items.length;
+    tbody.innerHTML = "";
 
-    items.forEach((item, idx) => {
-        const tr = document.createElement('tr');
-        const itemName = (item.name || '').replace(/'/g, "\\'");
-        
-        let nameHtml = `<strong>${item.name}</strong>`;
+    items.forEach((item, index) => {
+        let tr = document.createElement("tr");
+
+        let nameHtml = `<div style="font-weight: 600; color: #fff;">${escapeHtml(item.name || '')}</div>`;
         let subParts = [];
-
         if (item.original_name) {
-            subParts.push(`<span>${item.original_name}</span>`);
+            subParts.push(`<span style="color: #9ca3af;">${escapeHtml(item.original_name)}</span>`);
         }
-        if (item.address && item.address.trim() !== '') {
-            subParts.push(`<span class="addr-part" title="${item.address}">📍 ${item.address}</span>`);
+        if (item.address) {
+            subParts.push(`<span class="addr-part">📍 ${escapeHtml(item.address)}</span>`);
         }
-
+        if (item.url) {
+            subParts.push(`<a href="${item.url}" target="_blank" style="color: #3b82f6; text-decoration: none;">🔗 [Trip]</a>`);
+        }
         if (subParts.length > 0) {
             nameHtml += `<div class="item-sub-info">${subParts.join('<span class="sep">·</span>')}</div>`;
         }
 
-        if (item.url) {
-            nameHtml += ` <a href="${item.url}" target="_blank" title="Открыть на Trip.com" style="font-size: 12px; color: #2d88ff; text-decoration: none; margin-left: 6px;">🔗 [Trip]</a>`;
-        }
-
         tr.innerHTML = `
-            <td class="checkbox-cell">
-                <input type="checkbox" class="scraper-item-check" data-id="${item.id}" checked>
-            </td>
-            <td>${idx + 1}</td>
+            <td style="text-align: center; color: #9ca3af; font-weight: 500;">${index + 1}</td>
             <td>${nameHtml}</td>
-            <td>${item.list_name}</td>
+            <td>
+                <input type="text" value="${escapeHtml(item.list_name || 'Хочу посетить')}" 
+                    class="edit-input-field" style="width: 100%; font-size: 13px;"
+                    onchange="updateScrapedListItem(${item.id}, this.value)">
+            </td>
             <td class="col-delete">
-                <button class="btn-delete" onclick="deleteScraped(${item.id}, '${itemName}')" title="Удалить">
+                <button class="btn-delete" onclick="deleteScrapedItem(${item.id})" title="Удалить">
                     <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
                 </button>
             </td>
@@ -69,125 +61,135 @@ function renderScrapedTable(items) {
     });
 }
 
-async function deleteScraped(id, name) {
-    await fetch(`/api/scraped/${id}`, { method: 'DELETE' });
-    await loadScrapedData();
+async function updateScrapedListItem(id, val) {
+    let item = currentScrapedItems.find(x => x.id === id);
+    if (item) {
+        item.list_name = val.trim();
+    }
 }
 
-function toggleAllScraperCheckboxes(checked) {
-    document.querySelectorAll('.scraper-item-check').forEach(cb => cb.checked = checked);
-    const master = document.getElementById('selectAllScraper');
-    if (master) master.checked = checked;
-}
-
-async function transferSelectedToEvaluated() {
-    const checkboxes = document.querySelectorAll('.scraper-item-check:checked');
-    const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.getAttribute('data-id')));
-    const selectedItems = scrapedItems.filter(x => selectedIds.includes(x.id));
-
-    if (selectedItems.length === 0) {
-        showModal({ title: "Внимание", body: "Не выбрано ни одного объекта!", confirmText: "Понятно", onConfirm: () => {} });
+async function transferAllToEvaluated() {
+    if (!currentScrapedItems || currentScrapedItems.length === 0) {
+        alert("Нет объектов для переноса.");
         return;
     }
 
-    // Спрашиваем пользователя, нужно ли предварительно очистить список на второй вкладке
-    showModal({
-        title: "Перенос на оценку",
-        body: "Очистить текущий список на вкладке оценки перед переносом новых объектов?",
-        confirmText: "Да, очистить",
-        onConfirm: async () => {
-            await executeTransfer(selectedItems, true);
-        }
-    });
+    let btn = document.getElementById("btnTransferToEval");
+    btn.disabled = true;
+    btn.textContent = "Перенос...";
 
-    // Добавим кнопку "Нет, добавить к текущему" в модальное окно через кастомизацию или отменим по отмене. 
-    // Поскольку стандартная модалка имеет кнопку "Отмена", сделаем ее поведением "Добавить к текущему".
-    const cancelBtn = document.querySelector('.btn-modal-cancel');
-    if (cancelBtn) {
-        cancelBtn.innerText = "Добавить к текущему";
-        cancelBtn.onclick = async () => {
-            closeModal();
-            await executeTransfer(selectedItems, false);
-        };
+    try {
+        let res = await fetch('/api/scraped/transfer_to_evaluated', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ items: currentScrapedItems, clear: true })
+        });
+        let data = await res.json();
+        if (data.status === "success") {
+            switchTab('evaluateTab', document.getElementById('tabBtnEvaluate'));
+            loadEvaluatedData();
+        } else {
+            alert("Ошибка переноса: " + (data.message || "Неизвестная ошибка"));
+        }
+    } catch (e) {
+        alert("Ошибка сети при переносе.");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "⚡ Перенести всё на оценку";
     }
 }
 
-async function executeTransfer(selectedItems, clearExisting) {
-    const res = await fetch('/api/scraped/transfer_to_evaluated', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: selectedItems, clear: clearExisting })
-    });
-    const data = await res.json();
-    if (res.ok) {
-        showScraperStatus(`✅ Перенесено: выбрано ${selectedItems.length} общ. (новых: ${data.added_count}, дублей: ${data.duplicate_count}, всего на экране: ${data.total_count}). Перейдите на вкладку №2.`, "success");
+async function deleteScrapedItem(id) {
+    try {
+        await fetch(`/api/scraped/${id}`, { method: 'DELETE' });
+        currentScrapedItems = currentScrapedItems.filter(x => x.id !== id);
+        renderScrapedTable(currentScrapedItems);
+    } catch (e) {
+        console.error("Ошибка удаления:", e);
     }
 }
 
 async function runTripScraper() {
-    const region = document.getElementById('tripRegion').value.trim();
-    let limit = document.getElementById('tripLimit').value.trim();
-    const listName = document.getElementById('tripListName').value.trim();
-    const runBtn = document.getElementById('btnRunScraper');
-    const stopBtn = document.getElementById('btnStopScraper');
-    const logBox = document.getElementById('scraperLog');
+    let region = document.getElementById("tripRegion").value.trim();
+    let limit = document.getElementById("tripLimit").value;
+    let listName = document.getElementById("tripListName").value.trim() || "Хочу посетить";
 
     if (!region) {
-        showScraperStatus("⚠️ Пожалуйста, укажите регион для поиска!", "error");
-        document.getElementById('tripRegion').focus();
-        return;
-    }
-    if (!listName) {
-        showScraperStatus("⚠️ Пожалуйста, укажите имя целевого списка для Google Maps!", "error");
-        document.getElementById('tripListName').focus();
+        alert("Укажите регион для сбора!");
         return;
     }
 
-    runBtn.disabled = true;
-    stopBtn.disabled = false;
-    runBtn.innerText = 'Сбор выполняется...';
-    logBox.style.display = 'block';
-    logBox.innerText = '';
-    showScraperStatus("Идет сбор данных...", "info");
+    let btnRun = document.getElementById("btnRunScraper");
+    let btnStop = document.getElementById("btnStopScraper");
+    let statusDiv = document.getElementById("scraperStatus");
+    let logDiv = document.getElementById("scraperLog");
 
-    if (logPollTimer) clearInterval(logPollTimer);
-    logPollTimer = setInterval(async () => {
-        try {
-            const res = await fetch('/api/scraper/logs');
-            const data = await res.json();
-            if (data.logs) { logBox.innerText = data.logs; logBox.scrollTop = logBox.scrollHeight; }
-        } catch (e) {}
-    }, 400);
+    btnRun.disabled = true;
+    btnStop.disabled = false;
+    statusDiv.style.display = "block";
+    statusDiv.className = "status-message info";
+    statusDiv.textContent = "Сбор запущен в фоновом режиме... Пожалуйста, подождите.";
+    logDiv.style.display = "block";
+    logDiv.textContent = "Инициализация...";
 
     try {
-        const formData = new URLSearchParams();
-        formData.append('region', region);
-        formData.append('limit', limit);
-        formData.append('list_name', listName);
+        let formData = new FormData();
+        formData.append("region", region);
+        formData.append("limit", limit);
+        formData.append("list_name", listName);
 
-        const res = await fetch('/api/scrape/trip', {
+        let res = await fetch('/api/scrape/trip', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: formData
         });
-        const data = await res.json();
-        
-        if (res.ok) {
-            showScraperStatus(`✨ Сбор завершен! Найдено: ${data.count} объектов.`, "success");
-            loadScrapedData();
-        } else {
-            showScraperStatus("Ошибка: " + data.message, "error");
+        let data = await res.json();
+
+        if (data.status !== "started" && data.status !== "success") {
+            statusDiv.className = "status-message error";
+            statusDiv.textContent = "Ошибка: " + (data.message || "Не удалось запустить сбор");
+            btnRun.disabled = false;
+            btnStop.disabled = true;
+            return;
         }
+
+        // Опрашиваем логи и проверяем, когда поток завершит работу
+        let checkInterval = setInterval(async () => {
+            try {
+                // Тянем свежие логи
+                let logRes = await fetch('/api/scraper/logs');
+                let logData = await logRes.json();
+                logDiv.textContent = logData.logs;
+                logDiv.scrollTop = logDiv.scrollHeight;
+
+                // Проверяем, завершился ли фоновый поток (ищем строку завершения в логах или проверяем данные)
+                if (logData.logs.includes("Всего успешно обработано") || logData.logs.includes("[ERROR]")) {
+                    clearInterval(checkInterval);
+                    
+                    // Загружаем готовые собранные данные
+                    await loadScrapedData();
+                    
+                    btnRun.disabled = false;
+                    btnStop.disabled = true;
+
+                    if (logData.logs.includes("[ERROR]")) {
+                        statusDiv.className = "status-message error";
+                        statusDiv.textContent = "Сбор завершился с ошибкой (см. лог выше).";
+                    } else {
+                        statusDiv.className = "status-message success";
+                        statusDiv.textContent = `Сбор успешно завершен! Объектов в таблице: ${currentScrapedItems.length}`;
+                    }
+                }
+            } catch (e) {}
+        }, 1500);
+
     } catch (e) {
-        showScraperStatus("Ошибка запроса.", "error");
-    } finally {
-        if (logPollTimer) { clearInterval(logPollTimer); logPollTimer = null; }
-        runBtn.disabled = false;
-        stopBtn.disabled = true;
-        runBtn.innerText = 'Запустить сбор';
+        statusDiv.className = "status-message error";
+        statusDiv.textContent = "Ошибка сети при запросе сбора.";
+        btnRun.disabled = false;
+        btnStop.disabled = true;
     }
 }
 
 async function stopTripScraper() {
-    try { await fetch('/api/scrape/trip/stop', { method: 'POST' }); } catch (e) {}
+    await fetch('/api/scrape/trip/stop', { method: 'POST' });
 }

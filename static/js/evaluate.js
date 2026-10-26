@@ -13,7 +13,6 @@ function renderEvaluatedTable(items) {
     const hideRejected = document.getElementById('hideRejectedCheck').checked;
     const hideImported = document.getElementById('hideImportedCheck').checked;
 
-    // Фильтрация элементов на основе чекбоксов сверху
     const displayItems = items.filter(item => {
         const isRejected = item.rating_comment && item.rating_comment.startsWith('Отклонено:');
         const isImported = item.imported_list && item.imported_list.trim() !== '';
@@ -42,7 +41,6 @@ function renderEvaluatedTable(items) {
         const isRejected = item.rating_comment && item.rating_comment.startsWith('Отклонено:');
         const isImported = item.imported_list && item.imported_list.trim() !== '';
 
-        // Автоматическое визуальное выделение вердиктов
         if (isRejected) {
             tr.style.opacity = '0.4';
         } else if (isImported) {
@@ -88,27 +86,34 @@ function renderEvaluatedTable(items) {
             }
         }
 
-        if (isImported) {
-            const lists = item.imported_list.split(',').map(l => l.trim()).filter(Boolean);
-            const titleText = lists.length > 1 ? `В списках (${lists.length}): ${item.imported_list}` : `В списках: ${item.imported_list}`;
-            tagsHtml += `<span class="imported-list-tag" title="Уже добавлен в эти списки Google Maps">📌 ${titleText}</span>`;
+        // ПЕРВЫЙ РЯД (Информационный): Регионы + Блиц-оценка + Экспресс-аудит + Подробный гайд
+        if (item.rating_comment && item.rating_comment.trim() !== '' && !isRejected) {
+            if (item.rating_comment.startsWith('Блиц-оценка:')) {
+                tagsHtml += `<span style="display: inline-block; background: rgba(245, 158, 11, 0.15); color: #f59e0b; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">⚡ Пройдена блиц-оценка</span>`;
+            } else if (item.rating_comment.includes('Суть:') && item.rating_comment.includes('Вердикт:')) {
+                tagsHtml += `<span style="display: inline-block; background: rgba(139, 92, 246, 0.15); color: #a78bfa; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">⚡ Экспресс-аудит</span>`;
+            } else {
+                tagsHtml += `<span style="display: inline-block; background: rgba(52, 211, 153, 0.15); color: #34d399; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">📖 Есть подробный гайд</span>`;
+            }
         }
 
         if (tagsHtml) {
-            nameHtml += `<div style="margin-top: 2px;">${tagsHtml}</div>`;
+            nameHtml += `<div style="margin-top: 3px;">${tagsHtml}</div>`;
         }
 
+        // ВТОРОЙ РЯД (Рабочий статус): Строго взаимоисключающие жизненные циклы
         let statusBadges = '';
-        if (item.rating_comment && item.rating_comment.trim() !== '') {
-            if (isRejected) {
-                statusBadges += `<span style="display: inline-block; background: rgba(107, 114, 128, 0.15); color: #9ca3af; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;">❌ Не интересно</span>`;
-            } else if (item.rating_comment.startsWith('Блиц-оценка:')) {
-                statusBadges += `<span style="display: inline-block; background: rgba(245, 158, 11, 0.15); color: #f59e0b; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;">⚡ Пройдена блиц-оценка</span>`;
-            } else if (item.rating_comment.includes('Суть:') && item.rating_comment.includes('Вердикт:')) {
-                statusBadges += `<span style="display: inline-block; background: rgba(139, 92, 246, 0.15); color: #a78bfa; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;">⚡ Экспресс-аудит</span>`;
-            } else {
-                statusBadges += `<span style="display: inline-block; background: rgba(52, 211, 153, 0.15); color: #34d399; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;">📖 Есть подробный гайд</span>`;
-            }
+        
+        if (isRejected) {
+            statusBadges += `<span style="display: inline-block; background: rgba(107, 114, 128, 0.15); color: #9ca3af; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;">❌ Не интересно</span>`;
+        } else if (isImported) {
+            const lists = item.imported_list.split(',').map(l => l.trim()).filter(Boolean);
+            const titleText = lists.length > 1 ? `В списках (${lists.length}): ${item.imported_list}` : `В списках: ${item.imported_list}`;
+            statusBadges += `<span class="imported-list-tag" style="display: inline-block; margin-right: 6px; margin-top: 3px;" title="Уже добавлен в эти списки Google Maps">📌 ${titleText}</span>`;
+        } else if (item.is_queued) {
+            statusBadges += `<span style="display: inline-block; background: rgba(59, 130, 246, 0.15); color: #60a5fa; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;" title="Объект перенесен в очередь импорта на третью вкладку">🚀 Отправлено на импорт</span>`;
+        } else {
+            statusBadges += `<span style="display: inline-block; background: rgba(209, 213, 219, 0.12); color: #9ca3af; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;" title="Объект ожидает вашего решения">⏳ Ожидает решения</span>`;
         }
 
         if (statusBadges) {
@@ -316,8 +321,8 @@ async function rejectSelectedPanelItem() {
     try {
         const res = await fetch(`/api/evaluated/${selectedPanelItemId}/reject`, { method: 'POST' });
         if (res.ok) {
-            selectEvaluatedItem(selectedPanelItemId);
-            loadEvaluatedData();
+            await loadEvaluatedData();
+            await selectEvaluatedItem(selectedPanelItemId);
         } else {
             alert('Ошибка при отклонении объекта.');
         }

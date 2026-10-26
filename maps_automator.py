@@ -109,8 +109,8 @@ class MapsAutomator:
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         return R * c
 
-    def _validate_current_card(self, place_name: str, original_name: str, address: str, lat: float, lon: float, status_cb=None) -> tuple[bool, str]:
-        """Проверяет открытую карточку по координатам (расстоянию) и через ИИ-валидатор."""
+    def _validate_current_card(self, place_name: str, original_name: str, address: str, search_region: str, lat: float, lon: float, status_cb=None) -> tuple[bool, str]:
+        """Проверяет открытую карточку по координатам и через легкий ИИ-валидатор."""
         def report(txt):
             if status_cb:
                 status_cb(txt)
@@ -128,7 +128,6 @@ class MapsAutomator:
         if not title:
             return False, "Не удалось определить заголовок карточки"
 
-        # Извлекаем координаты из текущего URL Google Maps (@lat,lon)
         g_lat, g_lon = 0.0, 0.0
         match_coords = re.search(r'@([0-9]+\.[0-9]+),([0-9]+\.[0-9]+)', self.page.url)
         if match_coords:
@@ -138,24 +137,17 @@ class MapsAutomator:
         dist = 0.0
         if lat and lon and g_lat and g_lon:
             dist = self._haversine(lat, lon, g_lat, g_lon)
-            # Если расстояние больше 150 км — это гарантированно не тот объект (одноименная тезка в другом городе)
             if dist > 150.0:
                 return False, f"Слишком далеко от исходных координат ({dist:.1f} км)"
 
-        card_panel = self._get_card_panel()
-        context_texts = card_panel.locator("h2, span.fontBodyMedium").all_inner_texts()
-        base_context = " | ".join([t.strip() for t in context_texts[:5] if t.strip()])
+        geo_context = address if address else search_region
 
-        # Формируем расширенный контекст для ИИ с учетом адреса и дистанции
-        context_parts = [base_context]
-        if address:
-            context_parts.append(f"Ожидаемый адрес: {address}")
-        if lat and lon and g_lat and g_lon:
-            context_parts.append(f"Расстояние до исходной точки Trip.com: {dist:.1f} км")
-        card_context = " | ".join(context_parts)
-
-        # Передаем на финальную валидацию ИИ
-        is_match, reason = ai_service.verify_place_match(place_name, title, card_context, status_cb=report)
+        is_match, reason = ai_service.verify_place_match(
+            place_name=place_name,
+            original_name=original_name,
+            geo_context=geo_context,
+            card_title=title
+        )
         return is_match, reason
 
     def process_item(self, place_data, status_cb=None) -> tuple[bool, str]:
@@ -168,6 +160,8 @@ class MapsAutomator:
             lon = float(place_data.get("lon") or 0.0)
             list_name = place_data.get("list_name", "Хочу посетить")
             guide_text = place_data.get("rating_comment", "").strip()
+            
+            full_query = place_data.get("search_query", "").strip()
         else:
             place_name = str(place_data)
             original_name = ""
@@ -176,6 +170,19 @@ class MapsAutomator:
             lat, lon = 0.0, 0.0
             list_name = "Хочу посетить"
             guide_text = ""
+            full_query = ""
+
+        if not full_query:
+            query_parts = []
+            if original_name:
+                query_parts.append(original_name)
+            if place_name:
+                query_parts.append(place_name)
+            if address:
+                query_parts.append(address)
+            elif search_region:
+                query_parts.append(search_region)
+            full_query = " ".join(query_parts)
 
         def report(step_text: str):
             if status_cb:
@@ -191,18 +198,6 @@ class MapsAutomator:
 
             page = self.page
 
-            # Формируем поисковый запрос (название + адрес/регион)
-            query_parts = []
-            if original_name:
-                query_parts.append(original_name)
-            query_parts.append(place_name)
-            if address:
-                query_parts.append(address)
-            elif search_region:
-                query_parts.append(search_region)
-            
-            full_query = " ".join(query_parts)
-
             report(f"1/7: Поиск на карте: '{full_query}'...")
             encoded = urllib.parse.quote(full_query)
             page.goto(f"https://www.google.com/maps/search/{encoded}?hl=ru", wait_until="commit", timeout=30000)
@@ -215,32 +210,104 @@ class MapsAutomator:
             last_error = "Объект не найден"
 
             if feed.is_visible(timeout=2500):
-                report("2/7: Обнаружен список выдачи. Проверяем первые варианты...")
+                report("2/7: Обнаружен список выдачи. Умный анализ и ранжирование карточек...")
                 
-                # Перебираем первые 3 результата в выдаче
-                for i in range(3):
+                card_elements = page.locator('div[role="feed"] div.UaQhfb, div[role="feed"] div.i0jCxf').all()
+                if not card_elements:
+                    links = page.locator('div[role="feed"] a.hfpxzc').all()
+                    if not links:
+                        return False, "Объект не найден на картах (пустая выдача)"
+                    card_elements = [l.locator("xpath=ancestor::div[contains(@class, 'bfdHYd')][1]") for l in links]
+
+                candidates = []
+                for idx, card_el in enumerate(card_elements[:5]):
+                    try:
+                        text_content = card_el.inner_text()
+                        card_lines = [line.strip() for line in text_content.split("\n") if line.strip()]
+                        card_title_candidate = card_lines[0] if card_lines else ""
+
+                        # 1. Текстовое сходство названия
+                        name_to_check = place_name.lower()
+                        orig_to_check = original_name.lower() if original_name else ""
+                        cand_lower = card_title_candidate.lower()
+
+                        score_main = difflib.SequenceMatcher(None, name_to_check, cand_lower).ratio() * 100
+                        score_orig = difflib.SequenceMatcher(None, orig_to_check, cand_lower).ratio() * 100 if orig_to_check else 0.0
+                        name_match_score = max(score_main, score_orig)
+
+                        if name_to_check in cand_lower or cand_lower in name_to_check:
+                            name_match_score = max(name_match_score, 85.0)
+
+                        # 2. Рейтинг и отзывы
+                        rating_match = re.search(r'([0-9],[0-9]|[0-9]\.[0-9])\s*\(([0-9]+)\)', text_content)
+                        rating = float(rating_match.group(1).replace(',', '.')) if rating_match else 0.0
+                        reviews_count = int(rating_match.group(2)) if rating_match else 0
+                        
+                        has_phone = "+" in text_content
+                        has_reviews = "отзыв" in text_content.lower() or reviews_count > 0
+
+                        # 3. Бонусы за качество и штрафы за пустоту
+                        quality_bonus = (min(reviews_count, 50) * 0.5) + (rating * 3) + (25 if has_phone else 0) + (15 if has_reviews else 0)
+                        if not has_reviews and rating == 0.0 and not has_phone:
+                            quality_bonus -= 20.0
+
+                        weight = name_match_score + quality_bonus
+
+                        candidates.append({
+                            "index": idx,
+                            "weight": weight,
+                            "text": text_content.replace("\n", " | ")[:100]
+                        })
+                    except Exception:
+                        candidates.append({
+                            "index": idx,
+                            "weight": 0.0,
+                            "text": f"Вариант #{idx+1}"
+                        })
+
+                # Сортируем: сначала с подходящим названием и хорошей наполненностью
+                candidates.sort(key=lambda x: x["weight"], reverse=True)
+                report(f"Найдено вариантов: {len(candidates)}. Проверяем по приоритету...")
+
+                for cand in candidates:
                     if self.is_cancelled:
                         return False, "Прервано пользователем"
                     
-                    links = page.locator('div[role="feed"] a.hfpxzc').all()
-                    if i >= len(links):
-                        break
+                    real_idx = cand["index"]
+                    report(f"Проверка варианта (вес: {cand['weight']:.1f}): {cand['text']}...")
                     
-                    report(f"Проверка варианта №{i + 1} из выдачи...")
-                    links[i].click(force=True)
+                    current_links = page.locator('div[role="feed"] a.hfpxzc').all()
+                    if not current_links or real_idx >= len(current_links):
+                        all_blocks = page.locator('div[role="feed"] div.bfdHYd').all()
+                        if real_idx < len(all_blocks):
+                            target_link = all_blocks[real_idx].locator('a.hfpxzc').first
+                        else:
+                            continue
+                    else:
+                        target_link = current_links[real_idx]
+
+                    try:
+                        target_link.click(force=True)
+                    except Exception as e:
+                        last_error = f"Ошибка клика: {e}"
+                        continue
+
                     if self._wait_cancelled(2000):
                         return False, "Прервано пользователем"
 
-                    is_match, reason = self._validate_current_card(place_name, original_name, address, lat, lon, status_cb=report)
+                    is_match, reason = self._validate_current_card(
+                        place_name, original_name, address, search_region, lat, lon, status_cb=report
+                    )
                     if is_match:
-                        report(f"4/7: Вариант №{i + 1} успешно прошел проверку!")
+                        report("4/7: Карточка успешно прошла проверку!")
                         is_valid_match = True
                         break
                     else:
-                        report(f"Вариант №{i + 1} не подошел: {reason}. Возврат к списку...")
+                        report(f"Вариант отклонен: {reason}. Возврат к списку...")
                         last_error = reason
                         page.go_back()
-                        self._wait_cancelled(1500)
+                        if self._wait_cancelled(1500):
+                            return False, "Прервано пользователем"
 
                 if not is_valid_match:
                     return False, f"Ни один из вариантов не подошел. Последняя ошибка: {last_error}"
@@ -249,7 +316,13 @@ class MapsAutomator:
                 if self.is_cancelled:
                     return False, "Прервано пользователем"
 
-                is_match, reason = self._validate_current_card(place_name, original_name, address, lat, lon, status_cb=report)
+                title = self._extract_title()
+                if not title:
+                    return False, "Объект не найден (пустая карточка)"
+
+                is_match, reason = self._validate_current_card(
+                    place_name, original_name, address, search_region, lat, lon, status_cb=report
+                )
                 if is_match:
                     is_valid_match = True
                 else:
@@ -307,7 +380,6 @@ class MapsAutomator:
             if self._wait_cancelled(1200):
                 return False, "Прервано пользователем"
 
-            # 7. Проверка существующей заметки и вставка
             report("7/7: Проверка существующей заметки...")
             card_panel = self._get_card_panel()
 
@@ -329,7 +401,7 @@ class MapsAutomator:
                 existing_text = existing_textarea.input_value().strip()
                 if existing_text:
                     page.keyboard.press("Escape")
-                    return False, f"Пропущено: у объекта уже есть ненужная к перезаписи заметка ({len(existing_text)} зн.)"
+                    return True, f"Уже есть: у объекта уже есть заметка ({len(existing_text)} зн.)"
 
             note_btn = card_panel.locator(
                 'button:has-text("Добавить заметку"), '
@@ -362,7 +434,7 @@ class MapsAutomator:
             current_textarea_text = card_note_area.input_value().strip()
             if current_textarea_text:
                 page.keyboard.press("Escape")
-                return False, f"Пропущено: у объекта уже есть сохраненная заметка ({len(current_textarea_text)} зн.)"
+                return True, f"Уже есть: у объекта есть сохраненная заметка ({len(current_textarea_text)} зн.)"
 
             if not guide_text:
                 guide_text = f"Объект: {place_name} ({search_region})"

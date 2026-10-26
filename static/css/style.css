@@ -110,7 +110,7 @@ button.btn-ai:hover {
     background: #7c3aed;
 }
 
-/* Исправленные стили для компактных горизонтальных кнопок в таблице */
+/* Компактные горизонтальные кнопки в таблице */
 button.btn-single, .btn-single {
     display: inline-flex !important;
     flex-direction: row !important;
@@ -153,7 +153,8 @@ button.btn-delete:hover svg {
     fill: #f87171;
 }
 
-table {
+/* --- ОБЩИЕ СТИЛИ ТАБЛИЦ --- */
+.tab-content table {
     width: 100%;
     border-collapse: collapse;
     background: #242526;
@@ -162,18 +163,40 @@ table {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-th, td {
+.tab-content th, .tab-content td {
     padding: 12px 16px;
     text-align: left;
     border-bottom: 1px solid #393a3b;
+    vertical-align: middle;
 }
 
-th {
+.tab-content th {
     background: #303031;
     font-size: 13px;
     text-transform: uppercase;
     color: #b0b3b8;
 }
+
+/* --- ТАБЛИЦА 1: ВКЛАДКА СБОРА (4 колонки без чекбоксов) --- */
+.tab-content:nth-of-type(1) table th:nth-child(1), .tab-content:nth-of-type(1) table td:nth-child(1) { width: 50px; text-align: center; } /* Номер # */
+.tab-content:nth-of-type(1) table th:nth-child(2), .tab-content:nth-of-type(1) table td:nth-child(2) { width: auto; }                    /* Название */
+.tab-content:nth-of-type(1) table th:nth-child(3), .tab-content:nth-of-type(1) table td:nth-child(3) { width: 220px; }                  /* Целевой список */
+.tab-content:nth-of-type(1) table th:nth-child(4), .tab-content:nth-of-type(1) table td:nth-child(4) { width: 70px; text-align: center; } /* Удалить */
+
+/* --- ТАБЛИЦА 2 И 3: ВКЛАДКИ ОЦЕНКИ И ИМПОРТА --- */
+.tab-content:nth-of-type(2) table th:nth-child(1), .tab-content:nth-of-type(2) table td:nth-child(1),
+.tab-content:nth-of-type(3) table th:nth-child(1), .tab-content:nth-of-type(3) table td:nth-child(1) { width: 50px; text-align: center; } /* Номер # */
+
+.tab-content:nth-of-type(2) table th:nth-child(2), .tab-content:nth-of-type(2) table td:nth-child(2),
+.tab-content:nth-of-type(3) table th:nth-child(2), .tab-content:nth-of-type(3) table td:nth-child(2) { width: auto; }                    /* Объект / Запрос */
+
+.tab-content:nth-of-type(2) table th:nth-child(3), .tab-content:nth-of-type(2) table td:nth-child(3) { width: 110px; text-align: center; } /* Рейтинг */
+.tab-content:nth-of-type(3) table th:nth-child(3), .tab-content:nth-of-type(3) table td:nth-child(3) { width: 110px; text-align: center; } /* Рейтинг */
+
+.tab-content:nth-of-type(2) table th:nth-child(4), .tab-content:nth-of-type(2) table td:nth-child(4) { width: 70px; text-align: center; }  /* Удалить */
+.tab-content:nth-of-type(3) table th:nth-child(4), .tab-content:nth-of-type(3) table td:nth-child(4) { width: 120px; text-align: center; } /* Статус */
+
+.tab-content:nth-of-type(3) table th:nth-child(5), .tab-content:nth-of-type(3) table td:nth-child(5) { width: 70px; text-align: center; }  /* Удалить */
 
 tr:hover {
     background: #2f3031;
@@ -328,18 +351,6 @@ tr.selected-row {
     gap: 10px;
 }
 
-.checkbox-cell {
-    width: 40px;
-    text-align: center;
-}
-
-input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-    accent-color: #2d88ff;
-}
-
 .rating-badge {
     font-weight: 700;
     font-size: 13px;
@@ -410,15 +421,14 @@ input[type="checkbox"] {
     font-weight: 500;
 }
 
-/* Компактная строка под названием (оригинальное имя + адрес) */
 .item-sub-info {
     font-size: 12px;
     color: #8b949e;
-    margin-top: 3px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 650px;
+    margin-top: 4px;
+    line-height: 1.4;
+    word-break: break-word;
+    white-space: normal;
+    max-width: 100%;
 }
 
 .item-sub-info .addr-part {
@@ -530,7 +540,7 @@ input[type="checkbox"] {
     font-size: 14px;
     color: #b0b3b8;
     margin-bottom: 24px;
-    line-height: 1.5;
+    line-height: 1.4;
 }
 
 .modal-actions {
@@ -552,6 +562,7 @@ input[type="checkbox"] {
     background: #22c55e !important;
     color: #052e16 !important;
 }
+
 .btn-modal-success:hover {
     background: #16a34a !important;
 }

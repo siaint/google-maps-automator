@@ -52,19 +52,16 @@
                     Собранные объекты (<span id="previewCount">0</span>)
                 </h3>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button onclick="toggleAllScraperCheckboxes(true)" style="background: #3a3b3c; padding: 8px 12px;">Выбрать все</button>
-                    <button onclick="toggleAllScraperCheckboxes(false)" style="background: #3a3b3c; padding: 8px 12px;">Снять все</button>
-                    <button id="btnTransferToEval" onclick="transferSelectedToEvaluated()" style="background: #2d88ff; padding: 8px 16px;">⚡ Перенести выбранные на оценку</button>
+                    <button id="btnTransferToEval" onclick="transferAllToEvaluated()" style="background: #2d88ff; padding: 8px 16px;">⚡ Перенести всё на оценку</button>
                 </div>
             </div>
 
             <table>
                 <thead>
                     <tr>
-                        <th class="checkbox-cell"><input type="checkbox" id="selectAllScraper" checked onchange="toggleAllScraperCheckboxes(this.checked)"></th>
-                        <th style="width: 40px;">#</th>
+                        <th style="width: 50px; text-align: center;">#</th>
                         <th>Название достопримечательности</th>
-                        <th>Целевой список</th>
+                        <th style="width: 220px;">Целевой список</th>
                         <th class="col-delete">Удалить</th>
                     </tr>
                 </thead>
@@ -82,7 +79,6 @@
                 <button style="background: #3a3b3c;" onclick="loadEvaluatedData()">↻ Обновить список</button>
                 <button class="btn-clear" onclick="openClearModal('evaluated')">🗑 Очистить экран</button>
             </div>
-            <!-- Новые фильтры вместо ручного скрытия строк -->
             <div style="display: flex; align-items: center; gap: 16px; color: #b0b3b8; font-size: 13px; background: #242526; padding: 6px 14px; border-radius: 6px; border: 1px solid #393a3b;">
                 <div style="display: flex; align-items: center; gap: 6px;">
                     <input type="checkbox" id="hideRejectedCheck" onchange="loadEvaluatedData()" style="cursor: pointer;">
@@ -96,14 +92,13 @@
         </div>
 
         <div style="display: flex; gap: 20px; align-items: flex-start;">
-            <!-- Левая колонка: Таблица (без колонки действий со старой кнопкой скрытия) -->
             <div style="flex: 1; overflow-x: auto;">
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 40px;">#</th>
+                            <th style="width: 50px; text-align: center;">#</th>
                             <th>Название достопримечательности</th>
-                            <th style="width: 100px;">Рейтинг</th>
+                            <th style="width: 110px; text-align: center;">Рейтинг</th>
                             <th class="col-delete">Удалить</th>
                         </tr>
                     </thead>
@@ -111,7 +106,6 @@
                 </table>
             </div>
 
-            <!-- Правая панель: Предпросмотр и редактирование -->
             <div id="previewPanel" style="width: 500px; background: #242526; border-radius: 8px; padding: 20px; border: 1px solid #393a3b; position: sticky; top: 20px; display: none; box-sizing: border-box;">
                 <h3 id="panelTitle" style="margin-top: 0; color: #fff; font-size: 16px; word-break: break-word;">Выберите объект</h3>
                 <div id="panelAddress" style="font-size: 12px; color: #9ca3af; margin-bottom: 8px; display: none;"></div>
@@ -126,7 +120,6 @@
                     <button class="btn-single" style="background: #3b82f6;" onclick="rateSelectedPanelItem(true)" title="Сгенерировать чистовой гайд для карт">📖 Полное описание</button>
                 </div>
 
-                <!-- Блок текста гайда с кнопкой-карандашом -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                     <span style="font-size: 13px; color: #b0b3b8; font-weight: 600;">Текст гайда:</span>
                     <button id="btnEditComment" class="btn-icon-edit" onclick="toggleEditComment(true)" title="Редактировать описание">✏️ Изменить</button>
@@ -146,7 +139,6 @@
                     </div>
                 </div>
 
-                <!-- Блок назначения списка и кнопок решения (Не интересно + Перенести) -->
                 <div style="margin-top: 15px; border-top: 1px solid #393a3b; padding-top: 15px;">
                     <div class="target-box">
                         <div id="targetDisplayRow" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
@@ -176,26 +168,88 @@
 
     <!-- ВКЛАДКА 3: Импорт в карты -->
     <div id="importTab" class="tab-content">
-        <div class="actions">
-            <button id="btnStartAll" onclick="startBatch()">▶ Запустить все по очереди</button>
-            <button id="btnStop" class="btn-stop" onclick="stopBatch()" disabled>■ Остановить</button>
-            <button style="background: #3a3b3c;" onclick="loadPlacesData(true)">↻ Обновить файл</button>
-            <button class="btn-clear" onclick="openClearModal('places')">🗑 Очистить очередь</button>
+        <div class="actions" style="justify-content: space-between; align-items: center;">
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <button id="btnStartAll" onclick="startBatch()" style="background: #22c55e; color: #052e16; font-weight: bold;">▶ Запустить все по очереди</button>
+                <button id="btnStop" class="btn-stop" onclick="stopBatch()" disabled>■ Остановить</button>
+                <button style="background: #3a3b3c;" onclick="loadPlacesData(true)">↻ Обновить файл</button>
+                <button class="btn-clear" onclick="openClearModal('places')">🗑 Очистить очередь</button>
+            </div>
         </div>
 
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 50px;">#</th>
-                    <th>Объект (запрос)</th>
-                    <th>Целевой список</th>
-                    <th>Текущий статус</th>
-                    <th class="col-action">Действие</th>
-                    <th class="col-delete">Удалить</th>
-                </tr>
-            </thead>
-            <tbody id="placesTable"></tbody>
-        </table>
+        <div style="display: flex; gap: 20px; align-items: flex-start; margin-top: 15px;">
+            <!-- Левая колонка: Таблица очереди -->
+            <div style="flex: 1; overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 50px; text-align: center;">#</th>
+                            <th>Объект (запрос)</th>
+                            <th style="width: 110px; text-align: center;">Рейтинг</th>
+                            <th style="width: 120px; text-align: center;">Статус</th>
+                            <th class="col-delete">Удалить</th>
+                        </tr>
+                    </thead>
+                    <tbody id="placesTable"></tbody>
+                </table>
+            </div>
+
+            <!-- Правая панель: Предпросмотр гайда, картинки, поискового запроса и списков -->
+            <div id="importPreviewPanel" style="width: 500px; background: #242526; border-radius: 8px; padding: 20px; border: 1px solid #393a3b; position: sticky; top: 20px; display: none; box-sizing: border-box;">
+                <h3 id="importPanelTitle" style="margin-top: 0; color: #fff; font-size: 16px; word-break: break-word;">Выберите объект</h3>
+                <div id="importPanelAddress" style="font-size: 12px; color: #9ca3af; margin-bottom: 8px; display: none;"></div>
+                
+                <!-- Редактирование поискового запроса для карт -->
+                <div class="target-box" style="margin-bottom: 10px; background: #1e1e1e; border-color: #3b82f6;">
+                    <div style="font-size: 11px; color: #93c5fd; margin-bottom: 4px; font-weight: 600;">Поисковый запрос для Google Maps:</div>
+                    <div style="display: flex; gap: 6px; width: 100%;">
+                        <input type="text" id="importSearchQueryInput" class="edit-input-field" style="flex: 1; font-size: 13px;" placeholder="Текст для поиска на картах">
+                        <button class="btn-micro-save" onclick="saveImportSearchQuery()" title="Сохранить поисковый запрос">✓</button>
+                    </div>
+                </div>
+
+                <!-- Блок изображения -->
+                <div id="importPanelImageContainer" style="margin-bottom: 12px; text-align: center; background: #18191a; border-radius: 6px; padding: 4px; min-height: 100px; display: flex; align-items: center; justify-content: center;"></div>
+                
+                <div id="importPanelLinks" style="margin-bottom: 12px; font-size: 13px;"></div>
+                
+                <!-- Блок текста гайда -->
+                <div style="font-size: 13px; color: #b0b3b8; font-weight: 600; margin-bottom: 6px;">Текст гайда (заметка для карты):</div>
+                <div id="importPanelTextContent" style="background: #1e1e1e; padding: 12px; border-radius: 6px; font-size: 13px; color: #d4d4d4; height: 200px; overflow-y: auto; white-space: pre-wrap; line-height: 1.4; border: 1px solid #393a3b; margin-bottom: 12px;">
+                    Выберите объект из таблицы слева.
+                </div>
+
+                <!-- Редактирование целевого списка -->
+                <div class="target-box" style="margin-bottom: 12px;">
+                    <div id="importTargetDisplayRow" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <span>Целевой список Google Maps:</span>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <strong id="importPanelTargetListName">Хочу посетить</strong>
+                            <button class="btn-icon-edit" onclick="toggleEditImportList(true)" title="Сменить список">✏️</button>
+                        </div>
+                    </div>
+                    <div id="importTargetEditRow" style="display: none; width: 100%;">
+                        <div style="display: flex; gap: 6px; width: 100%;">
+                            <input type="text" id="importPanelTargetListInput" class="edit-input-field" style="flex: 1;" placeholder="Имя списка Google Maps">
+                            <button class="btn-micro-save" onclick="saveImportListEdit()">✓</button>
+                            <button class="btn-micro-cancel" onclick="toggleEditImportList(false)">✕</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Кнопка добавления и история списков -->
+                <div style="border-top: 1px solid #393a3b; padding-top: 12px; display: flex; flex-direction: column; gap: 10px;">
+                    <button id="importPanelProcessBtn" class="btn-single" style="background: #22c55e; color: #052e16; font-weight: bold; width: 100%; padding: 10px;" onclick="processSelectedImportItem()">▶ Добавить объект на Google Maps</button>
+                    
+                    <div>
+                        <div style="font-size: 12px; color: #b0b3b8; font-weight: 600; margin-bottom: 4px;">История добавления в списки:</div>
+                        <div id="importPanelImportHistory" style="background: #18191a; padding: 8px 10px; border-radius: 6px; font-size: 12px; color: #93c5fd; border: 1px solid #393a3b;">
+                            Объект еще не импортировался в карты.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -213,7 +267,7 @@
 <script src="/static/js/common.js"></script>
 <script src="/static/js/scraper.js"></script>
 <script src="/static/js/evaluate.js"></script>
-<script src="/static/js/import.js"></script>
+<script src="/static/js/import.js?v=7"></script>
 <script>
     loadScrapedData();
 </script>

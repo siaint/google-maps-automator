@@ -6,15 +6,14 @@ function showModal({ title, body, confirmText = 'Удалить', confirmClass =
     const confirmBtn = document.getElementById('modalConfirmBtn');
     confirmBtn.innerText = confirmText;
     
-    // Сбрасываем и устанавливаем класс кнопки (danger или success/primary)
     confirmBtn.className = confirmClass;
-    
     confirmBtn.onclick = () => { closeModal(); onConfirm(); };
 
-    // Управление видимостью кнопки "Отмена"
     const cancelBtn = modal.querySelector('.btn-modal-cancel');
     if (cancelBtn) {
         cancelBtn.style.display = singleButton ? 'none' : 'inline-block';
+        cancelBtn.innerText = "Отмена";
+        cancelBtn.onclick = () => closeModal();
     }
 
     modal.style.display = 'flex';
@@ -24,10 +23,11 @@ function closeModal() {
     const modal = document.getElementById('confirmModal');
     modal.style.display = 'none';
     
-    // Возвращаем видимость кнопки отмены на случай будущих модалок
     const cancelBtn = modal.querySelector('.btn-modal-cancel');
     if (cancelBtn) {
         cancelBtn.style.display = 'inline-block';
+        cancelBtn.innerText = "Отмена";
+        cancelBtn.onclick = () => closeModal();
     }
 }
 

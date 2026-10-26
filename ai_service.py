@@ -69,10 +69,16 @@ def quick_audit_attraction(place_name: str, region: str = "", original_name: str
     }
 
 
-def rate_attraction(place_name: str, region: str = "", original_name: str = "", full_description: bool = False, address: str = "") -> dict:
+def rate_attraction(place_name: str, region: str = "", original_name: str = "", full_description: bool = False, address: str = "", status_cb=None) -> dict:
     """
-    Генерирует подробное описание по вашему скиллу. Требует наличия GUIDE_PROMPT_FILE.
+    Генерирует подробное описание по вашему скиллу. 
+    Включает двухпроходную логику: если текст превышает 4000 символов, запускается второй проход для сжатия.
     """
+    def report(msg):
+        if status_cb:
+            status_cb(msg)
+        logger.info(f"  [AI-Guide] {msg}")
+
     if not GUIDE_PROMPT_FILE.exists():
         err_msg = f"Ошибка: файл гайда {GUIDE_PROMPT_FILE.name} не найден"
         logger.error(err_msg)
@@ -83,7 +89,7 @@ def rate_attraction(place_name: str, region: str = "", original_name: str = "", 
 
     orig_part = f' (оригинальное название: "{original_name}")' if original_name else ''
     addr_part = f', локация/адрес: "{address}"' if address else f', регион: "{region}"'
-    mode_str = "Режим: Полное подробное описание (шаблон до 3800 символов)" if full_description else "Режим: Оценка и первичное описание по шкале интереса"
+    mode_str = "Режим: Полное подробное описание (шаблон строго до 4000 символов)" if full_description else "Режим: Оценка и первичное описание по шкале интереса"
     user_query = f'Объект: "{place_name}"{orig_part}{addr_part}. Не занижай оценку из-за удаленности или логистики. {mode_str}'
 
     config = types.GenerateContentConfig(
@@ -97,6 +103,7 @@ def rate_attraction(place_name: str, region: str = "", original_name: str = "", 
     last_err = ""
     text_resp = ""
 
+    report("Генерация подробного описания...")
     for model_name in models_to_try:
         for attempt in range(1, 4):
             try:
@@ -125,10 +132,40 @@ def rate_attraction(place_name: str, region: str = "", original_name: str = "", 
             "comment": f"Ошибка AI: {last_err}"
         }
 
+    # Проверка длины текста и второй проход (сокращение при превышении 4000 символов)
+    if full_description and len(text_resp) > 4000:
+        report(f"Текст превысил лимит ({len(text_resp)} зн.). Сокращаем текст (второй проход)...")
+        compress_prompt = f"""
+Отредактируй и сократи следующий текст об объекте «{place_name}», чтобы его общая длина строго не превышала 4000 символов, но не была меньше 3500 символов. 
+Сохрани всю ключевую историческую информацию, структуру шаблона, рейтинги и полезные советы, но убери «воды» и избыточные описания.
+ВАЖНО: Выдавай ТОЛЬКО итоговый текст гайда в формате Markdown. Запрещено писать любые вступительные фразы, комментарии вроде 'Вот отредактированный текст...', метаданные или рассуждения. Начало ответа сразу с названия объекта.
+
+Исходный текст для сокращения:
+{text_resp}
+"""
+        for attempt in range(1, 3):
+            try:
+                comp_resp = client.models.generate_content(
+                    model="gemini-3.5-flash-lite",
+                    contents=compress_prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.2,
+                        max_output_tokens=1500,
+                    )
+                )
+                comp_text = comp_resp.text.strip()
+                if comp_text:
+                    text_resp = comp_text
+                    report(f"Текст успешно сокращен до {len(text_resp)} символов.")
+                    break
+            except Exception as e:
+                logger.error(f"Ошибка при сжатии текста: {e}")
+                if attempt == 2:
+                    report("Не удалось выполнить сжатие, используется оригинальный текст.")
+
     personal_rating = 0.0
     global_rating = 0.0
     
-    # 1. Ищем строго по шаблону "Личный рейтинг:" (или Personal) с последующим числом
     m_pr = re.search(r'(?:личн\w*|personal)[^\d\n]*?(\d+\.\d+|\d+)', text_resp, re.IGNORECASE)
     if m_pr:
         try:
@@ -136,7 +173,6 @@ def rate_attraction(place_name: str, region: str = "", original_name: str = "", 
         except:
             pass
 
-    # 2. Ищем строго по шаблону "Глобальный рейтинг:" (или Global) с последующим числом
     m_gr = re.search(r'(?:глобал\w*|global)[^\d\n]*?(\d+\.\d+|\d+)', text_resp, re.IGNORECASE)
     if m_gr:
         try:
@@ -144,7 +180,6 @@ def rate_attraction(place_name: str, region: str = "", original_name: str = "", 
         except:
             pass
 
-    # 3. Если первый способ не сработал, ищем внутри секции **Рейтинг:**
     if personal_rating == 0.0 or global_rating == 0.0:
         rating_section_match = re.search(r'\*\*Рейтинг:\*\*(.*?)(?=\*\*Полезная|\Z)', text_resp, re.DOTALL | re.IGNORECASE)
         if rating_section_match:
@@ -163,49 +198,50 @@ def rate_attraction(place_name: str, region: str = "", original_name: str = "", 
     }
 
 
-def verify_place_match(query: str, card_title: str, card_context: str, status_cb=None) -> tuple[bool, str]:
-    def report(msg: str):
-        if status_cb:
-            status_cb(msg)
-        logger.info(f"  [AI-Verify] {msg}")
+def verify_place_match(place_name: str, original_name: str, geo_context: str, card_title: str) -> tuple[bool, str]:
+    names_str = f'"{place_name}"'
+    if original_name and original_name != place_name:
+        names_str += f' (ориг. "{original_name}")'
 
     prompt = f"""
-Ты — валидатор соответствия географических объектов для Google Maps.
-Пользователь искал объект: "{query}".
-На Google Maps открылась карточка:
-- Основной заголовок: "{card_title}"
-- Дополнительный контекст карточки (описание, категория, адрес): "{card_context}"
+Гео-валидатор карт. 
+Искомый объект: {names_str}. 
+Ожидаемый региональный контекст: "{geo_context or 'не указан'}".
+Найденная карточка на картах: "{card_title}".
 
-Задача: Определи, является ли открытая карточка именно тем объектом, который искал пользователь.
+Правила проверки:
+1. Кросс-языковое соответствие: название на карте может быть на любом языке или письменности (иероглифы, пиньинь и т.д.) и являться переводом.
+2. Игнорируй разницу в суффиксах и типах (парк, музей, temple и т.п.).
+3. РЕГИОНЫ И ГОРОДА: В туристических базах объекты могут числиться за общим регионом, автономным районом или соседним крупным городом, но физически находиться в другом городе или уезде этой же провинции/области. Если название и суть объекта совпадают, разница в городах внутри одного региона/провинции НЕ является ошибкой — это тот самый объект.
+4. Отвечай true, если это один объект. False — только если это принципиально другое место в другой части страны или мира.
 
-Ответь строго в формате JSON:
+Ответь строго в JSON:
 {{
   "is_match": true или false,
-  "confidence": число от 0.0 до 1.0,
-  "reason": "краткое объяснение на русском в 1 предложение"
+  "reason": "краткая причина решения в 1 предложение на русском"
 }}
 """
-    for attempt in range(1, 4):
+    for attempt in range(1, 3):
         try:
-            report(f"4/7: Валидация Gemini-Lite ({attempt}/3)...")
             resp = client.models.generate_content(
                 model="gemini-3.5-flash-lite",
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    temperature=0.1,
+                    temperature=0.0,
+                    max_output_tokens=150,
                 ),
             )
             data = json.loads(resp.text)
-            return data.get("is_match", False), data.get("reason", "")
+            is_matched = data.get("is_match", False)
+            reason = data.get("reason", "Причина не указана")
+            return is_matched, reason
         except Exception as e:
-            if "503" in str(e) or "429" in str(e) and attempt < 3:
-                report("4/7: Модель перегружена (429/503). Пауза 2 сек...")
-                time.sleep(2)
+            if attempt == 1:
+                time.sleep(1)
                 continue
-            return False, f"Ошибка валидации API: {e}"
-    return False, "Превышен лимит попыток валидации"
-
+            return False, f"Ошибка валидации: {e}"
+    return False, "Превышен лимит попыток"
 
 def rate_attractions_batch(places: list[dict]) -> list[dict]:
     """

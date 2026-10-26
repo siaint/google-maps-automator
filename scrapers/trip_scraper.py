@@ -195,33 +195,52 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                     page.goto(detail_url, wait_until="domcontentloaded", timeout=15000)
                     page.wait_for_timeout(1200)
 
-                    # Извлечение координат и сырого адреса
+                    # Трехуровневое извлечение координат
                     geo_info = page.evaluate(r"""() => {
                         let res = { lat: 0.0, lon: 0.0, address: "" };
+
                         try {
-                            const scripts = document.querySelectorAll('script[type="application/ld+json"], script#__NEXT_DATA__');
-                            for (let s of scripts) {
-                                try {
-                                    let data = JSON.parse(s.innerText);
-                                    let geo = data.geo || (data.props && data.props.pageProps && data.props.pageProps.poiInfo);
-                                    if (geo) {
-                                        if (geo.latitude && geo.longitude) {
-                                            res.lat = parseFloat(geo.latitude);
-                                            res.lon = parseFloat(geo.longitude);
-                                        }
-                                        if (geo.address) {
-                                            res.address = typeof geo.address === 'string' ? geo.address : (geo.address.streetAddress || '');
-                                        }
-                                    }
-                                } catch(e){}
+                            const nextDataEl = document.getElementById('__NEXT_DATA__');
+                            if (nextDataEl) {
+                                const json = JSON.parse(nextDataEl.innerText);
+                                const basicInfo = json?.props?.pageProps?.initialState?.appData?.overviewData?.basicInfo;
+                                if (basicInfo && basicInfo.coordinate) {
+                                    res.lat = parseFloat(basicInfo.coordinate.latitude) || 0.0;
+                                    res.lon = parseFloat(basicInfo.coordinate.longitude) || 0.0;
+                                }
+                                if (basicInfo && basicInfo.address) {
+                                    res.address = basicInfo.address;
+                                }
                             }
                         } catch(e){}
 
-                        if (!res.lat && window.__INITIAL_STATE__) {
+                        if (!res.lat) {
                             try {
-                                let stateStr = JSON.stringify(window.__INITIAL_STATE__);
-                                let mLat = stateStr.match(/"lat(?:itude)?":\s*([0-9]+\.[0-9]+)/i);
-                                let mLon = stateStr.match(/"lon(?:gitude)?":\s*([0-9]+\.[0-9]+)/i);
+                                const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+                                for (let s of scripts) {
+                                    try {
+                                        const data = JSON.parse(s.innerText);
+                                        const graph = data['@graph'] || [data];
+                                        for (let item of graph) {
+                                            if (item.geo && item.geo.latitude && item.geo.longitude) {
+                                                res.lat = parseFloat(item.geo.latitude);
+                                                res.lon = parseFloat(item.geo.longitude);
+                                            }
+                                            if (item.address && !res.address) {
+                                                let ad = item.address;
+                                                res.address = typeof ad === 'string' ? ad : (ad.streetAddress || '');
+                                            }
+                                        }
+                                    } catch(e){}
+                                }
+                            } catch(e){}
+                        }
+
+                        if (!res.lat) {
+                            try {
+                                const htmlText = document.documentElement.innerHTML;
+                                const mLat = htmlText.match(/"latitude":\s*([0-9]+\.[0-9]+)/);
+                                const mLon = htmlText.match(/"longitude":\s*([0-9]+\.[0-9]+)/);
                                 if (mLat && mLon) {
                                     res.lat = parseFloat(mLat[1]);
                                     res.lon = parseFloat(mLon[1]);
@@ -229,20 +248,6 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                             } catch(e){}
                         }
 
-                        if (!res.lat) {
-                            const mapLinks = document.querySelectorAll('a[href*="maps"], a[href*="coord"], div[data-lat]');
-                            for (let a of mapLinks) {
-                                let href = a.getAttribute('href') || a.getAttribute('data-lat') || '';
-                                let m = href.match(/([0-9]+\.[0-9]{3,})[,_]([0-9]+\.[0-9]{3,})/);
-                                if (m) {
-                                    res.lat = parseFloat(m[1]);
-                                    res.lon = parseFloat(m[2]);
-                                    break;
-                                }
-                            }
-                        }
-
-                        // Поиск адреса в DOM с удалением кнопок карт и иконок
                         if (!res.address) {
                             const addrEl = document.querySelector('div[class*="address"], span[class*="Address"], div[class*="location"]');
                             if (addrEl) {
@@ -260,13 +265,11 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                         lon = float(geo_info.get("lon") or 0.0)
                         raw_addr = str(geo_info.get("address") or "").strip()
                         
-                        # Чистовая очистка адреса в Python
                         raw_addr = re.sub(r'^Address[:\s]*', '', raw_addr, flags=re.IGNORECASE)
                         raw_addr = re.sub(r'[\r\n\t]+', ' ', raw_addr)
                         raw_addr = re.sub(r'[\s|·•]*Map\b.*$', '', raw_addr, flags=re.IGNORECASE)
                         address_text = re.sub(r'[\uE000-\uF8FF\uFFF0-\uFFFF\u25A0-\u25FF]', '', raw_addr).strip()
 
-                    # Ищем оригинальное название
                     orig_el = page.locator('h1 + div, div[class*="subTitle"], span[class*="local"], h2[class*="sub"]').first
                     if orig_el.count() > 0:
                         candidate = orig_el.inner_text().strip().split('\n')[0]
@@ -282,7 +285,6 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                                     orig_name = htext
                                     break
 
-                    # Поиск превью
                     for img_sel in [
                         'div[class*="Banner"] img', 
                         'div[class*="gallery"] img', 
@@ -323,7 +325,7 @@ def scrape_trip_attractions(region_query: str, list_name: str = "Хочу пос
                 }
                 results.append(new_item)
                 
-                coord_mark = f" 📍 [{lat:.4f}, {lon:.4f}]" if lat and lon else ""
+                coord_mark = f" 📍 [{lat:.4f}, {lon:.4f}]" if lat and lon else " ⚠️ [Без координат]"
                 display_str = f"{en_name} ({orig_name})" if orig_name else en_name
                 print(f"  [{new_item['id']}/{len(raw_attractions)}] Parsed: {display_str}{coord_mark}")
 
