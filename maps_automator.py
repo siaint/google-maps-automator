@@ -33,7 +33,7 @@ class MapsAutomator:
                 viewport={"width": 1366, "height": 900},
                 args=[
                     "--disable-blink-features=AutomationControlled",
-                    "--lang=ru-RU",
+                    "--lang=en-US",
                     "--disable-gpu",
                     "--no-sandbox",
                 ],
@@ -110,7 +110,6 @@ class MapsAutomator:
         return R * c
 
     def _validate_current_card(self, place_name: str, original_name: str, address: str, search_region: str, lat: float, lon: float, status_cb=None) -> tuple[bool, str]:
-        """Проверяет открытую карточку по координатам и через легкий ИИ-валидатор."""
         def report(txt):
             if status_cb:
                 status_cb(txt)
@@ -129,13 +128,11 @@ class MapsAutomator:
             return False, "Не удалось определить заголовок карточки"
 
         g_lat, g_lon = 0.0, 0.0
-        # 1. Сначала ищем классический паттерн с @
         match_coords = re.search(r'@([0-9.-]+),([0-9.-]+)', self.page.url)
         if match_coords:
             g_lat = float(match_coords.group(1))
             g_lon = float(match_coords.group(2))
         else:
-            # 2. Если его нет, ищем внутренние параметры координат Google Maps (!3d и !4d)
             match_3d4d = re.search(r'!3d([0-9.-]+)!4d([0-9.-]+)', self.page.url)
             if match_3d4d:
                 g_lat = float(match_3d4d.group(1))
@@ -167,7 +164,6 @@ class MapsAutomator:
             lon = float(place_data.get("lon") or 0.0)
             list_name = place_data.get("list_name", "Хочу посетить")
             guide_text = place_data.get("rating_comment", "").strip()
-            
             full_query = place_data.get("search_query", "").strip()
         else:
             place_name = str(place_data)
@@ -207,9 +203,9 @@ class MapsAutomator:
             encoded_base_query = urllib.parse.quote(full_query)
 
             report(f"1/7: Поиск на карте: '{full_query}'...")
-            page.goto(f"https://www.google.com/maps/search/{encoded_base_query}?hl=ru", wait_until="commit", timeout=30000)
+            page.goto(f"https://www.google.com/maps/search/{encoded_base_query}?hl=en", wait_until="commit", timeout=30000)
             
-            if self._wait_cancelled(3000):
+            if self._wait_cancelled(2500):
                 return False, "Прервано пользователем"
 
             feed = page.locator('div[role="feed"]')
@@ -218,6 +214,7 @@ class MapsAutomator:
 
             if feed.is_visible(timeout=2500):
                 report("2/7: Обнаружен список выдачи. Сканирование карточек-кандидатов...")
+                page.wait_for_timeout(400)
                 
                 link_locators = page.locator('div[role="feed"] a.hfpxzc').all()
                 if not link_locators:
@@ -241,21 +238,24 @@ class MapsAutomator:
                         score_orig = difflib.SequenceMatcher(None, orig_to_check, cand_lower).ratio() * 100 if orig_to_check else 0.0
                         name_match_score = max(score_main, score_orig)
 
-                        if name_to_check in cand_lower or cand_lower in name_to_check:
-                            name_match_score = max(name_match_score, 85.0)
+                        if name_match_score < 40.0:
+                            continue
 
                         rating_match = re.search(r'([0-9],[0-9]|[0-9]\.[0-9])\s*\(([0-9]+)\)', text_content)
                         rating = float(rating_match.group(1).replace(',', '.')) if rating_match else 0.0
                         reviews_count = int(rating_match.group(2)) if rating_match else 0
                         
                         has_phone = "+" in text_content
-                        has_reviews = "отзыв" in text_content.lower() or reviews_count > 0
+                        has_website = "website" in text_content.lower() or "веб-сайт" in text_content.lower()
+                        
+                        activity_score = (min(reviews_count, 1000) * 0.5) + (rating * 10)
+                        if has_phone:
+                            activity_score += 50
+                        if has_website:
+                            activity_score += 50
 
-                        quality_bonus = (min(reviews_count, 50) * 0.5) + (rating * 3) + (25 if has_phone else 0) + (15 if has_reviews else 0)
-                        if not has_reviews and rating == 0.0 and not has_phone:
-                            quality_bonus -= 20.0
-
-                        weight = name_match_score + quality_bonus
+                        position_bonus = max(0, (5 - idx) * 5)
+                        weight = name_match_score + activity_score + position_bonus
 
                         candidates_meta.append({
                             "index": idx,
@@ -267,7 +267,7 @@ class MapsAutomator:
                         continue
 
                 candidates_meta.sort(key=lambda x: x["weight"], reverse=True)
-                report(f"Собрано кандидатов: {len(candidates_meta)}. Проверяем по порядку...")
+                report(f"Собрано подходящих кандидатов: {len(candidates_meta)}. Проверяем по порядку...")
 
                 for cand in candidates_meta:
                     if self.is_cancelled:
@@ -276,7 +276,7 @@ class MapsAutomator:
                     report(f"Проверка кандидата (вес: {cand['weight']:.1f}): {cand['text']}...")
 
                     if cand["href"]:
-                        page.goto(cand["href"], wait_until="commit", timeout=20000)
+                        page.goto(cand["href"], wait_until="commit", timeout=30000)
                     else:
                         fresh_links = page.locator('div[role="feed"] a.hfpxzc').all()
                         if cand["index"] < len(fresh_links):
@@ -284,7 +284,7 @@ class MapsAutomator:
                         else:
                             continue
 
-                    if self._wait_cancelled(2000):
+                    if self._wait_cancelled(1500):
                         return False, "Прервано пользователем"
 
                     is_match, reason = self._validate_current_card(
@@ -297,8 +297,8 @@ class MapsAutomator:
                     else:
                         report(f"Вариант отклонен: {reason}. Переходим к следующему...")
                         last_error = reason
-                        page.goto(f"https://www.google.com/maps/search/{encoded_base_query}?hl=ru", wait_until="commit", timeout=20000)
-                        if self._wait_cancelled(1500):
+                        page.goto(f"https://www.google.com/maps/search/{encoded_base_query}?hl=en", wait_until="commit", timeout=30000)
+                        if self._wait_cancelled(1200):
                             return False, "Прервано пользователем"
 
                 if not is_valid_match:
@@ -326,6 +326,10 @@ class MapsAutomator:
             if self.is_cancelled:
                 return False, "Прервано пользователем"
 
+            # Быстрая стабилизация карточки
+            if self._wait_cancelled(1000):
+                return False, "Прервано пользователем"
+
             card_panel = self._get_card_panel()
             report("5/7: Меню сохранения...")
             save_btn = card_panel.locator(
@@ -333,116 +337,187 @@ class MapsAutomator:
                 'button[data-value*="Save"], button[aria-label*="Save"], '
                 'button:has([data-icon="bookmark"])'
             ).first
-            save_btn.wait_for(state="attached", timeout=6000)
-            save_btn.click(force=True)
             
-            if self._wait_cancelled(2000):
-                return False, "Прервано пользователем"
+            save_btn.wait_for(state="visible", timeout=6000)
+            save_btn.click(force=True)
 
             report(f"6/7: Поиск списка \"{list_name}\"...")
             target_text_locator = page.get_by_text(list_name, exact=True).first
 
+            # Ищем пункт списка в выпадающем окне
             found = False
-            for _ in range(8):
+            for _ in range(30):
                 if self.is_cancelled:
                     return False, "Прервано пользователем"
                 if target_text_locator.is_visible():
                     found = True
                     break
-                if self._wait_cancelled(500):
+                if self._wait_cancelled(200):
                     return False, "Прервано пользователем"
 
-            if found:
-                menu_item = target_text_locator.locator(
-                    "xpath=ancestor::div[@role='menuitemcheckbox' or @role='menuitemradio' or contains(@class, 'oMFyCd')][1]"
-                )
-                if not menu_item.is_visible():
-                    menu_item = target_text_locator
-
-                aria_val = menu_item.get_attribute("aria-checked")
-                if aria_val != "true":
-                    menu_item.click(force=True)
-                    if self._wait_cancelled(2000):
-                        return False, "Прервано пользователем"
-            else:
+            if not found:
+                page.screenshot(path="debug_maps_lists.png", full_page=False)
                 page.keyboard.press("Escape")
                 return False, f"Список \"{list_name}\" не найден в окне"
 
-            page.keyboard.press("Escape")
-            if self._wait_cancelled(1200):
-                return False, "Прервано пользователем"
+            # Клик точно по тексту названия списка (переключает чекбокс без подвисаний)
+            # --- ШАГ 6/7: ВЫБОР СПИСКА И ОЖИДАНИЕ ФИКСАЦИИ ---
+            report(f"6/7: Поиск списка \"{list_name}\"...")
+            target_text_locator = page.get_by_text(list_name, exact=True).first
 
-            report("7/7: Проверка существующей заметки...")
-            card_panel = self._get_card_panel()
-
-            accordion_header = card_panel.locator(
-                'div[role="button"]:has-text("Сохранено в"), '
-                'div:has-text("Сохранено в списках"), '
-                'div:has-text("Сохранено в списке")'
-            ).last
-
-            if accordion_header.is_visible(timeout=2000):
-                if not card_panel.locator('textarea, button:has-text("Добавить заметку")').first.is_visible():
-                    accordion_header.scroll_into_view_if_needed()
-                    accordion_header.click(force=True)
-                    if self._wait_cancelled(1000):
-                        return False, "Прервано пользователем"
-
-            existing_textarea = card_panel.locator('textarea').first
-            if existing_textarea.is_visible(timeout=1500):
-                existing_text = existing_textarea.input_value().strip()
-                if existing_text:
-                    page.keyboard.press("Escape")
-                    return True, f"Уже есть: у объекта уже есть заметка ({len(existing_text)} зн.)"
-
-            note_btn = card_panel.locator(
-                'button:has-text("Добавить заметку"), '
-                'button[aria-label*="заметк" i], '
-                'div[role="button"]:has-text("Добавить заметку"), '
-                'div:has-text("Добавьте заметку")'
-            ).first
-
-            if note_btn.is_visible(timeout=1500):
-                note_btn.scroll_into_view_if_needed()
-                note_btn.click(force=True)
-                if self._wait_cancelled(800):
-                    return False, "Прервано пользователем"
-
-            card_note_area = card_panel.locator('textarea').first
-            found_ta = False
-            for _ in range(8):
+            found = False
+            for _ in range(30):
                 if self.is_cancelled:
                     return False, "Прервано пользователем"
-                if card_note_area.is_visible():
-                    found_ta = True
+                if target_text_locator.is_visible():
+                    found = True
                     break
-                if self._wait_cancelled(400):
+                if self._wait_cancelled(200):
                     return False, "Прервано пользователем"
 
-            if not found_ta:
+            if not found:
+                page.screenshot(path="debug_maps_lists.png", full_page=False)
+                page.keyboard.press("Escape")
+                return False, f"Список \"{list_name}\" не найден в окне"
+
+            report(f"6/7: Выбор списка \"{list_name}\"...")
+            target_text_locator.click(force=True)
+
+            # Закрываем всплывающее меню списков
+            if self._wait_cancelled(600):
+                return False, "Прервано пользователем"
+            page.keyboard.press("Escape")
+
+            report("6/7: Ожидание подтверждения сохранения (Saved)...")
+            # Ждём, пока статус "Saving..." исчезнет, а кнопка перейдёт в "Saved"
+            saved_confirmed = False
+            for _ in range(25):  # до 12.5 секунд на сетевой ответ
+                if self.is_cancelled:
+                    return False, "Прервано пользователем"
+
+                is_saving = card_panel.locator(
+                    'button:has-text("Saving..."), button:has-text("Сохранение..."), [aria-label*="Saving"]'
+                ).is_visible()
+
+                has_saved = card_panel.locator(
+                    'button:has-text("Saved"), button:has-text("Сохранено"), '
+                    'button[data-value*="Saved"], button[aria-label*="Saved"], '
+                    'div[role="button"]:has-text("Saved in"), div[role="button"]:has-text("Сохранено в")'
+                ).first.is_visible()
+
+                if not is_saving and has_saved:
+                    saved_confirmed = True
+                    break
+
+                if self._wait_cancelled(500):
+                    return False, "Прервано пользователем"
+
+            if not saved_confirmed:
+                report("Предупреждение: статус 'Saved' не появился за отведённое время, пробуем продолжить...")
+
+            # --- ШАГ 7/7: РАБОТА С ЗАМЕТКОЙ ---
+            report("7/7: Поиск блока заметки...")
+            card_panel = self._get_card_panel()
+
+            # Если список свернут в аккордеон/чип — разворачиваем его
+            saved_badge = card_panel.locator(
+                'button:has-text("Saved in"), '
+                'div[role="button"]:has-text("Saved in"), '
+                'button:has-text("Сохранено в"), '
+                'div[role="button"]:has-text("Сохранено в")'
+            ).first
+
+            if saved_badge.is_visible(timeout=1500):
+                try:
+                    saved_badge.scroll_into_view_if_needed()
+                    saved_badge.click()
+                    self._wait_cancelled(500)
+                except Exception:
+                    pass
+
+            # Ищем поле ввода заметки или кнопку её добавления
+            note_input = card_panel.locator(
+                'textarea, '
+                'input[placeholder*="note" i], '
+                'input[placeholder*="заметк" i], '
+                'div[role="textbox"]'
+            ).first
+
+            found_input = False
+            for _ in range(12):
+                if self.is_cancelled:
+                    return False, "Прервано пользователем"
+                if note_input.is_visible():
+                    found_input = True
+                    break
+
+                add_note_btn = card_panel.locator(
+                    'button[aria-label*="note" i], '
+                    'button[aria-label*="заметк" i], '
+                    'button:has-text("Add note"), '
+                    'button:has-text("Add a note"), '
+                    'button:has-text("Edit note"), '
+                    'button:has-text("Добавить заметку"), '
+                    'button:has-text("Изменить заметку"), '
+                    'div[role="button"]:has-text("Add a note"), '
+                    'div[role="button"]:has-text("Edit note")'
+                ).first
+
+                if add_note_btn.is_visible():
+                    try:
+                        add_note_btn.scroll_into_view_if_needed()
+                        add_note_btn.click(force=True)
+                        self._wait_cancelled(500)
+                    except Exception:
+                        pass
+
+                if self._wait_cancelled(300):
+                    return False, "Прервано пользователем"
+
+            if not found_input:
+                global_ta = page.locator('textarea, div[role="dialog"] textarea').first
+                if global_ta.is_visible(timeout=1000):
+                    note_input = global_ta
+                    found_input = True
+
+            if not found_input:
                 page.screenshot(path="debug_maps_card.png", full_page=False)
                 return False, "Не удалось открыть поле заметки на карточке"
 
-            current_textarea_text = card_note_area.input_value().strip()
-            if current_textarea_text:
-                page.keyboard.press("Escape")
-                return True, f"Уже есть: у объекта есть сохраненная заметка ({len(current_textarea_text)} зн.)"
+            # Проверяем наличие уже существующей заметки
+            try:
+                current_text = note_input.input_value().strip()
+                if current_text:
+                    return True, f"Уже есть: у объекта есть сохраненная заметка ({len(current_text)} зн.)"
+            except Exception:
+                pass
 
             if not guide_text:
                 guide_text = f"Объект: {place_name} ({search_region})"
 
+            # Ввод текста заметки
             report(f"7/7: Вставка новой заметки ({len(guide_text)} зн.)...")
-            card_note_area.scroll_into_view_if_needed()
-            card_note_area.click(force=True)
-            card_note_area.fill(guide_text)
-            if self._wait_cancelled(1000):
-                return False, "Прервано пользователем"
+            
+            # Стало: аккуратная плавная прокрутка строго внутри левой панели и клик без скачка окна
+            note_input.evaluate("el => el.scrollIntoView({ block: 'nearest', inline: 'nearest' })")
+            note_input.click(force=True)
+            note_input.fill(guide_text)
+            
 
-            report("7/7: Сохранение заметки...")
-            header = card_panel.locator('h1.DUwDvf').first
-            if header.is_visible():
-                header.click(force=True)
-            if self._wait_cancelled(2500):
+            # Снимаем дамп для проверки состояния формы заметки
+            report("7/7: Сохранение дампа DOM для отладки...")
+            try:
+                page.screenshot(path="debug_note_opened.png", full_page=False)
+                with open("debug_note_panel.html", "w", encoding="utf-8") as f:
+                    f.write(card_panel.inner_html())
+            except Exception as e:
+                report(f"Ошибка дампа: {e}")
+
+            # Снимаем фокус с поля для запуска автосохранения
+            note_input.evaluate("el => el.blur()")
+
+            report("7/7: Ожидание отправки заметки...")
+            if self._wait_cancelled(5000):
                 return False, "Прервано пользователем"
 
             return True, f"Сохранено в '{list_name}' с заметкой ({len(guide_text)} зн.)"

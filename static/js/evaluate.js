@@ -55,9 +55,14 @@ function renderEvaluatedTable(items) {
         const ratingVal = parseFloat(item.rating);
         let ratingBadge = `<span class="rating-none">-</span>`;
         if (!isNaN(ratingVal)) {
-            let rClass = 'rating-med';
-            if (ratingVal >= 7.0) rClass = 'rating-high';
-            else if (ratingVal < 4.0) rClass = 'rating-low';
+            let rClass = 'rating-low'; // по умолчанию для слабых (< 4.5)
+            if (ratingVal >= 8.0) {
+                rClass = 'rating-high'; // Отлично (≥ 8.0)
+            } else if (ratingVal >= 6.5) {
+                rClass = 'rating-med';  // Хорошо (6.5 - 7.9)
+            } else if (ratingVal >= 4.5) {
+                rClass = 'rating-fair'; // Средне (4.5 - 6.4)
+            }
             ratingBadge = `<span class="rating-badge ${rClass}">★ ${ratingVal.toFixed(1)}</span>`;
         }
 
@@ -80,20 +85,24 @@ function renderEvaluatedTable(items) {
         if (item.search_region && item.search_region.trim() !== '') {
             const regions = item.search_region.split(',').map(r => r.trim()).filter(Boolean);
             if (regions.length > 1) {
-                tagsHtml += `<span class="region-tag duplicate" title="Объект встретился в поисках: ${item.search_region}">🔁 Повтор ×${regions.length}: ${item.search_region}</span> `;
+                // Повтор (приглушенный синевато-серый)
+                tagsHtml += `<span class="region-tag duplicate" style="background: rgba(100, 116, 139, 0.15); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.3);" title="Объект встретился в поисках: ${item.search_region}">🔁 Повтор ×${regions.length}: ${item.search_region}</span> `;
             } else {
                 tagsHtml += `<span class="region-tag single" title="Регион поиска">📍 ${item.search_region}</span> `;
             }
         }
 
-        // ПЕРВЫЙ РЯД (Информационный): Регионы + Блиц-оценка + Экспресс-аудит + Подробный гайд
+        // ПЕРВЫЙ РЯД (Информационный): Метки аудита и гайдов
         if (item.rating_comment && item.rating_comment.trim() !== '' && !isRejected) {
             if (item.rating_comment.startsWith('Блиц-оценка:')) {
-                tagsHtml += `<span style="display: inline-block; background: rgba(245, 158, 11, 0.15); color: #f59e0b; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">⚡ Пройдена блиц-оценка</span>`;
+                // Блиц-оценка (аккуратный бирюзовый / мятный)
+                tagsHtml += `<span style="display: inline-block; background: rgba(20, 184, 166, 0.15); color: #2dd4bf; font-size: 11px; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(20, 184, 166, 0.3); margin-left: 4px;">⚡ Пройдена блиц-оценка</span>`;
             } else if (item.rating_comment.includes('Суть:') && item.rating_comment.includes('Вердикт:')) {
-                tagsHtml += `<span style="display: inline-block; background: rgba(139, 92, 246, 0.15); color: #a78bfa; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">⚡ Экспресс-аудит</span>`;
+                // Экспресс-аудит (фиолетовый)
+                tagsHtml += `<span style="display: inline-block; background: rgba(139, 92, 246, 0.15); color: #a78bfa; font-size: 11px; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(139, 92, 246, 0.3); margin-left: 4px;">⚡ Экспресс-аудит</span>`;
             } else {
-                tagsHtml += `<span style="display: inline-block; background: rgba(52, 211, 153, 0.15); color: #34d399; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">📖 Есть подробный гайд</span>`;
+                // Подробный гайд (зеленый)
+                tagsHtml += `<span style="display: inline-block; background: rgba(52, 211, 153, 0.15); color: #34d399; font-size: 11px; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(52, 211, 153, 0.3); margin-left: 4px;">📖 Есть подробный гайд</span>`;
             }
         }
 
@@ -113,7 +122,8 @@ function renderEvaluatedTable(items) {
         } else if (item.is_queued) {
             statusBadges += `<span style="display: inline-block; background: rgba(59, 130, 246, 0.15); color: #60a5fa; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;" title="Объект перенесен в очередь импорта на третью вкладку">🚀 Отправлено на импорт</span>`;
         } else {
-            statusBadges += `<span style="display: inline-block; background: rgba(209, 213, 219, 0.12); color: #9ca3af; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;" title="Объект ожидает вашего решения">⏳ Ожидает решения</span>`;
+            // Ожидает решения — делаем сочным янтарно-оранжевым с рамкой, чтобы выделялся
+            statusBadges += `<span style="display: inline-block; background: rgba(245, 158, 11, 0.25); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.6); font-weight: 600; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-top: 3px;" title="Объект ожидает вашего решения">⏳ Ожидает решения</span>`;
         }
 
         if (statusBadges) {
@@ -210,7 +220,11 @@ async function selectEvaluatedItem(id) {
     const ratingVal = parseFloat(item.rating);
     let ratingHtml = `<span style="color: #9ca3af;">Оценка не проводилась</span>`;
     if (!isNaN(ratingVal)) {
-        let color = ratingVal >= 7 ? '#4ade80' : ratingVal >= 4 ? '#facc15' : '#f87171';
+        let color = '#f87171'; // красный для слабых (< 4.5)
+        if (ratingVal >= 8.0) color = '#4ade80';      // сочный зеленый
+        else if (ratingVal >= 6.5) color = '#a3e635'; // салатовый
+        else if (ratingVal >= 4.5) color = '#facc15'; // желтый
+        
         ratingHtml = `<strong style="color: ${color};">Рейтинг: ${ratingVal.toFixed(1)}</strong>`;
     }
     document.getElementById('panelRating').innerHTML = ratingHtml;
@@ -419,15 +433,28 @@ async function transferCurrentPanelItem() {
     });
     const data = await res.json();
     if (res.ok) {
-        showModal({
-            title: "Успешно",
-            body: `Объект «${item.name}» успешно передан в очередь импорта карт!`,
-            confirmText: "Хорошо",
-            confirmClass: "btn-modal-success",
-            singleButton: true,
-            onConfirm: () => {}
-        });
+        if (data.added_count > 0) {
+            showModal({
+                title: "Успешно",
+                body: `Объект «${item.name}» успешно передан в очередь импорта карт!`,
+                confirmText: "Хорошо",
+                confirmClass: "btn-modal-success",
+                singleButton: true,
+                onConfirm: () => {}
+            });
+        } else {
+            showModal({
+                title: "Уже в очереди",
+                body: `Объект «${item.name}» уже присутствует в очереди импорта для этого списка.`,
+                confirmText: "Понятно",
+                confirmClass: "btn-modal-primary",
+                singleButton: true,
+                onConfirm: () => {}
+            });
+        }
         loadEvaluatedData();
-        loadPlacesData(true);
+        if (typeof loadPlacesData === 'function') {
+            loadPlacesData(true);
+        }
     }
 }

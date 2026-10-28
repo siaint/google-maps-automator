@@ -42,7 +42,6 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
-    # Проверяем, существует ли старая таблица
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='evaluated_items'")
     table_exists = cursor.fetchone()
     
@@ -102,11 +101,8 @@ def init_db():
             )
         ''')
 
-    # Сбрасываем только разрешенные ручные индексы
     cursor.execute("DROP INDEX IF EXISTS idx_evaluated_orig_name")
     cursor.execute("DROP INDEX IF EXISTS idx_evaluated_name_region")
-    
-    # Создаем чистый уникальный индекс по имени и адресу
     cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_evaluated_name_address ON evaluated_items (name, address) WHERE address != ''")
         
     conn.commit()
@@ -266,6 +262,8 @@ async def transfer_to_evaluated(request: Request):
     
     added_count = 0
     duplicate_count = 0
+    skipped_empty = 0
+    db_conflicts = 0
     
     for item in items:
         raw_name = (item.get("name") or "").strip()
@@ -279,6 +277,8 @@ async def transfer_to_evaluated(request: Request):
         raw_list = (item.get("list_name") or "Хочу посетить").strip()
         
         if not raw_name and not orig_name:
+            skipped_empty += 1
+            print(f"[TRANSFER DEBUG] Пропущен объект с пустым именем (ID/данные: {item})")
             continue
         
         candidates = []
@@ -311,13 +311,15 @@ async def transfer_to_evaluated(request: Request):
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                 ''', (raw_name, orig_name, search_reg, item_url, item_img, item_lat, item_lon, item_addr, raw_list))
                 added_count += 1
-            except sqlite3.IntegrityError:
+            except sqlite3.IntegrityError as e:
+                db_conflicts += 1
                 duplicate_count += 1
+                print(f"[TRANSFER DEBUG] Конфликт уникальности БД для объекта '{raw_name}' (адрес: '{item_addr}'): {e}")
         else:
             existing_regions = [r.strip() for r in (matched_existing["search_region"] or "").split(",") if r.strip()]
             if search_reg and search_reg not in existing_regions:
                 existing_regions.append(search_reg)
-            merged_regions = ", ".join(existing_regions)
+            merged_regions = ", ".join(existing_regions) if existing_regions else search_reg
 
             cursor.execute('''
                 UPDATE evaluated_items 
@@ -328,9 +330,10 @@ async def transfer_to_evaluated(request: Request):
                     lon = CASE WHEN lon = 0.0 THEN ? ELSE lon END,
                     address = COALESCE(NULLIF(?, ''), address),
                     search_region = ?,
+                    list_name = ?,
                     hidden = 0
                 WHERE id = ?
-            ''', (item_url, item_img, orig_name, item_lat, item_lon, item_addr, merged_regions, matched_existing["id"]))
+            ''', (item_url, item_img, orig_name, item_lat, item_lon, item_addr, merged_regions, raw_list, matched_existing["id"]))
             duplicate_count += 1
 
     conn.commit()
@@ -338,10 +341,14 @@ async def transfer_to_evaluated(request: Request):
     total_count = cursor.fetchone()[0]
     conn.close()
     
+    print(f"[TRANSFER SUMMARY] Всего передано: {len(items)} | Добавлено новых: {added_count} | Объединено/Дубликатов: {duplicate_count} (в т.ч. конфликтов БД: {db_conflicts}) | Пропущено пустых: {skipped_empty} | Всего в базе: {total_count}")
+
     return JSONResponse({
         "status": "success", 
         "added_count": added_count, 
-        "duplicate_count": duplicate_count, 
+        "duplicate_count": duplicate_count,
+        "skipped_empty": skipped_empty,
+        "db_conflicts": db_conflicts,
         "total_count": total_count
     })
 
@@ -438,7 +445,6 @@ async def update_evaluated_item(item_id: int, request: Request):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    # Сначала получаем актуальные данные объекта, включая текущий рейтинг
     cursor.execute("SELECT * FROM evaluated_items WHERE id = ?", (item_id,))
     row = cursor.fetchone()
     if not row:
@@ -467,7 +473,6 @@ async def update_evaluated_item(item_id: int, request: Request):
 
     conn.close()
 
-    # Синхронизируем изменения в очереди на третьей вкладке (places.json), если объект там есть
     updated_in_places = False
     for p in places_cache:
         p_oname = (p.get("original_name") or "").strip().lower()
@@ -484,7 +489,6 @@ async def update_evaluated_item(item_id: int, request: Request):
                 p["list_name"] = item["list_name"]
             if rating_comment is not None:
                 p["rating_comment"] = item["rating_comment"]
-            # Также подтягиваем актуальный рейтинг, если он изменился
             if item.get("rating"):
                 p["rating"] = item["rating"]
             updated_in_places = True
@@ -551,10 +555,8 @@ async def rate_place_endpoint(request: Request):
     else:
         res = await loop.run_in_executor(executor, ai_service.quick_audit_attraction, place_name, address, original_name, address)
 
-    # Надежно извлекаем рейтинг из ответа ИИ
     rating_val = res.get("personal_rating")
     if not rating_val or rating_val == 0.0:
-        # Пытаемся вытащить из текста комментария, если в поле rating ничего нет
         import re
         comment_text = res.get("comment", "")
         match = re.search(r'\*\*Рейтинг:\s*([\d.]+)\*\*', comment_text, re.IGNORECASE)
@@ -584,7 +586,6 @@ async def rate_place_endpoint(request: Request):
     conn.commit()
     conn.close()
 
-    # Синхронизируем новый рейтинг и комментарий (гайд) с очередью импорта на третьей вкладке
     updated_in_places = False
     for p in places_cache:
         p_oname = (p.get("original_name") or "").strip().lower()
@@ -691,16 +692,19 @@ async def transfer_to_places(request: Request):
     for x in places_cache:
         oname = (x.get("original_name") or "").strip().lower()
         rname = (x.get("name") or "").strip().lower()
-        if oname:
-            existing_keys.add(oname)
-        if rname:
-            existing_keys.add(rname)
+        x_lat = float(x.get("lat") or 0.0)
+        
+        # Ключ точно такой же, как при проверке item_key ниже:
+        k = f"{oname}_{x_lat:.2f}" if (oname and x_lat) else (oname if oname else rname)
+        if k:
+            existing_keys.add(k)
     
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
 
     added_count = 0
     for item in items:
+        eval_id = item.get("id")
         raw_name = (item.get("name") or "").strip()
         orig_name = (item.get("original_name") or "").strip()
         item_url = (item.get("url") or "").strip()
@@ -726,6 +730,7 @@ async def transfer_to_places(request: Request):
         if item_key not in existing_keys:
             places_cache.append({
                 "id": len(places_cache) + 1,
+                "evaluated_id": eval_id,
                 "name": raw_name,
                 "original_name": orig_name,
                 "url": item_url,
@@ -798,16 +803,22 @@ def _sync_process(item_id: int):
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        orig_name = target.get("original_name", "").strip()
-        r_name = target.get("name", "").strip()
-        if orig_name:
-            cursor.execute("UPDATE evaluated_items SET imported_list = ? WHERE LOWER(TRIM(original_name)) = LOWER(?)", (target["imported_list"], orig_name))
-        elif r_name:
-            cursor.execute("UPDATE evaluated_items SET imported_list = ? WHERE LOWER(TRIM(name)) = LOWER(?)", (target["imported_list"], r_name))
+        
+        eval_id = target.get("evaluated_id")
+        if eval_id:
+            cursor.execute("UPDATE evaluated_items SET imported_list = ? WHERE id = ?", (target["imported_list"], eval_id))
+        else:
+            orig_name = target.get("original_name", "").strip()
+            r_name = target.get("name", "").strip()
+            if orig_name:
+                cursor.execute("UPDATE evaluated_items SET imported_list = ? WHERE LOWER(TRIM(original_name)) = LOWER(?)", (target["imported_list"], orig_name))
+            elif r_name:
+                cursor.execute("UPDATE evaluated_items SET imported_list = ? WHERE LOWER(TRIM(name)) = LOWER(?)", (target["imported_list"], r_name))
+                
         conn.commit()
         conn.close()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[DB ERROR] Ошибка обновления imported_list: {e}")
     
     save_json_file(PLACES_FILE, places_cache)
 
